@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from 'react';
-import { useMorsePlayer } from './hooks/useMorsePlayer';
-import { MorseSettings } from './types';
-import Controls from './components/Controls';
-import CharacterDisplay from './components/CharacterDisplay';
+import { useMorsePlayer } from '../hooks/useMorsePlayer';
+import { MorseSettings } from '../types';
+import Controls from '../components/Controls';
+import CharacterDisplay from '../components/CharacterDisplay';
 
 const App: React.FC = () => {
   const [settings, setSettings] = useState<MorseSettings>({
