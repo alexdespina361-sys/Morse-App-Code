@@ -6,91 +6,108 @@ export const useMorsePlayer = (initialSettings: MorseSettings) => {
   const [isInitialized, setIsInitialized] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
-  const oscillatorRef = useRef<OscillatorNode | null>(null);
+  // Removed oscillatorRef as we will be creating and forgetting oscillators.
   const settingsRef = useRef<MorseSettings>(initialSettings);
-  const timeoutIdsRef = useRef<number[]>([]);
+  const timeoutIdsRef = useRef<number[]>([]); // For UI updates, not for audio scheduling.
 
   useEffect(() => {
     settingsRef.current = initialSettings;
   }, [initialSettings]);
 
   const initializeAudio = useCallback(() => {
-    if (!isInitialized) {
-      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const gainNode = context.createGain();
-      gainNode.connect(context.destination);
+    // No user interaction yet, so we can't create the context.
+    if (typeof window === 'undefined') return;
 
-      // Resume context if it's suspended by the browser's autoplay policy.
+    // This function should be called from a user event (e.g., a button click).
+    if (!audioContextRef.current) {
+      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // If the context is created in a suspended state, it needs to be resumed.
       if (context.state === 'suspended') {
         context.resume();
       }
+
+      const gainNode = context.createGain();
+      gainNode.connect(context.destination);
       
       audioContextRef.current = context;
       gainNodeRef.current = gainNode;
       setIsInitialized(true);
     }
-  }, [isInitialized]);
+  }, []);
 
   const clearTimeouts = useCallback(() => {
     timeoutIdsRef.current.forEach(id => clearTimeout(id));
     timeoutIdsRef.current = [];
   }, []);
 
-  const playTone = useCallback((duration: number) => {
+  // REFACTORED: playTone now accepts a startTime for precise scheduling.
+  const playTone = useCallback((startTime: number, duration: number) => {
     if (!audioContextRef.current || !gainNodeRef.current) return;
 
     const context = audioContextRef.current;
     const gainNode = gainNodeRef.current;
     const oscillator = context.createOscillator();
-    oscillatorRef.current = oscillator;
 
-    oscillator.frequency.setValueAtTime(settingsRef.current.frequency, context.currentTime);
+    // --- IMPROVEMENT 1: Set Oscillator Type for Audio Quality ---
+    // Explicitly set the type to 'sine' to avoid high-frequency warping (aliasing).
+    oscillator.type = 'sine';
+    oscillator.frequency.setValueAtTime(settingsRef.current.frequency, startTime);
     oscillator.connect(gainNode);
 
-    const now = context.currentTime;
-    const attackTime = 0.005; 
-    gainNode.gain.cancelScheduledValues(now);
-    gainNode.gain.setValueAtTime(0, now);
-    gainNode.gain.linearRampToValueAtTime(settingsRef.current.volume, now + attackTime);
-    gainNode.gain.setValueAtTime(settingsRef.current.volume, now + duration - attackTime);
-    gainNode.gain.linearRampToValueAtTime(0, now + duration);
+    // --- IMPROVEMENT 2: Use AudioContext clock for the volume envelope ---
+    const attackTime = 0.005; // 5ms attack to prevent clicks
+    const releaseTime = 0.005; // 5ms release
+    const { volume } = settingsRef.current;
+    
+    // Schedule all volume changes using the precise startTime.
+    gainNode.gain.setValueAtTime(0, startTime);
+    gainNode.gain.linearRampToValueAtTime(volume, startTime + attackTime);
+    gainNode.gain.setValueAtTime(volume, startTime + duration - releaseTime);
+    gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
 
-    oscillator.start(now);
-    oscillator.stop(now + duration);
+    oscillator.start(startTime);
+    oscillator.stop(startTime + duration);
   }, []);
 
   const stop = useCallback(() => {
     clearTimeouts();
-    if (oscillatorRef.current) {
-      try {
-        oscillatorRef.current.stop();
-      } catch (e) {
-        // may already be stopped
-      }
-    }
     if (gainNodeRef.current && audioContextRef.current) {
-        gainNodeRef.current.gain.cancelScheduledValues(audioContextRef.current.currentTime);
-        gainNodeRef.current.gain.setValueAtTime(0, audioContextRef.current.currentTime);
+        const context = audioContextRef.current;
+        const gainNode = gainNodeRef.current;
+        const now = context.currentTime;
+        
+        // This is the most effective way to stop sound.
+        // It cancels all future scheduled gain changes and ramps the volume to 0.
+        gainNode.gain.cancelScheduledValues(now);
+        gainNode.gain.linearRampToValueAtTime(0, now + 0.05); // Fade out over 50ms
     }
   }, [clearTimeouts]);
 
+  // REFACTORED: The main play function now uses the Web Audio clock.
   const play = useCallback((
     text: string, 
     onCharChange: (index: number) => void,
     onEnd: () => void
   ) => {
-    stop();
+    stop(); // Clear any previous playback.
     if (!audioContextRef.current) return;
 
+    const context = audioContextRef.current;
     const dotDuration = 1.2 / settingsRef.current.wpm;
-    let scheduleTime = audioContextRef.current.currentTime;
     const textUpperCase = text.toUpperCase();
+
+    // --- IMPROVEMENT 3: High-Precision Scheduling Loop ---
+    // Instead of setTimeout, we calculate future times based on the audio context's clock.
+    let scheduleTime = context.currentTime + 0.1; // Start 100ms in the future for safety.
 
     for (let i = 0; i < textUpperCase.length; i++) {
       const char = textUpperCase[i];
       const morseChar = MORSE_CODE_MAP[char];
       
-      const charTimeoutId = window.setTimeout(() => onCharChange(i), (scheduleTime - audioContextRef.current!.currentTime) * 1000);
+      // UI updates can still use setTimeout, as they don't need to be sample-accurate.
+      const uiUpdateTime = (scheduleTime - context.currentTime) * 1000;
+      const charTimeoutId = window.setTimeout(() => onCharChange(i), uiUpdateTime);
       timeoutIdsRef.current.push(charTimeoutId);
 
       if (char === ' ') {
@@ -103,19 +120,21 @@ export const useMorsePlayer = (initialSettings: MorseSettings) => {
           const signal = morseChar[j];
           const duration = signal === '.' ? dotDuration : 3 * dotDuration;
           
-          const timeoutId = window.setTimeout(() => playTone(duration), (scheduleTime - audioContextRef.current!.currentTime) * 1000);
-          timeoutIdsRef.current.push(timeoutId);
+          // Schedule the tone using the precise clock.
+          playTone(scheduleTime, duration);
 
           scheduleTime += duration;
           if (j < morseChar.length - 1) {
-            scheduleTime += dotDuration; // Intra-character space
+            scheduleTime += dotDuration; // Intra-character space (1 dot).
           }
         }
-        scheduleTime += settingsRef.current.charSpaceDots * dotDuration; // Inter-character space
+        // Inter-character space (3 dots).
+        scheduleTime += settingsRef.current.charSpaceDots * dotDuration;
       }
     }
 
-    const endTimeoutId = window.setTimeout(onEnd, (scheduleTime - audioContextRef.current!.currentTime) * 1000);
+    // Schedule the final onEnd callback.
+    const endTimeoutId = window.setTimeout(onEnd, (scheduleTime - context.currentTime) * 1000);
     timeoutIdsRef.current.push(endTimeoutId);
   }, [playTone, stop]);
 
