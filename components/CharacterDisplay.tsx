@@ -31,14 +31,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({ text, showCharacter
                 return null;
             }
             return (
-              <span
-                key={index}
-                className={`transition-colors duration-100 p-0.5 rounded-sm ${
-                  index === currentIndex
-                    ? 'bg-teal-500 text-gray-900 font-bold'
-                    : ''
-                }`}
-              >
+              <span key={index}>
                 {char === ' ' ? '\u00A0' : char}
               </span>
             );

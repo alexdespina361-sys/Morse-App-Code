@@ -37,6 +37,7 @@ const App: React.FC = () => {
     } else {
       if (!isInitialized) {
         initializeAudio();
+        return;
       }
 
       if (characterSet.length === 0) {

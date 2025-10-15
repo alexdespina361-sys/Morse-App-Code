@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { MorseSettings } from '../types';
 import { MORSE_CODE_MAP } from '../constants';
@@ -20,6 +19,11 @@ export const useMorsePlayer = (initialSettings: MorseSettings) => {
       const context = new (window.AudioContext || (window as any).webkitAudioContext)();
       const gainNode = context.createGain();
       gainNode.connect(context.destination);
+
+      // Resume context if it's suspended by the browser's autoplay policy.
+      if (context.state === 'suspended') {
+        context.resume();
+      }
       
       audioContextRef.current = context;
       gainNodeRef.current = gainNode;
