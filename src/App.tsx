@@ -7,12 +7,12 @@ import CharacterDisplay from '../components/CharacterDisplay';
 
 // Predefined lessons
 const PREDEFINED_LESSONS: Lesson[] = [
-  { id: 'QERTYIPASJZB', name: 'QERTYIPASJZB', chars: 'QERTYIPASJZB' },
-  { id: 'COLH', name: 'COLH', chars: 'COLH' },
-  { id: 'Numere', name: 'Numere (0-9)', chars: '0123456789' },
-  { id: 'QERTYIPASJZBCOLH', name: 'QERTYIPASJZBCOLH', chars: 'QERTYIPASJZBCOLH' },
-  { id: 'Litere', name: 'Litere', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' },
-  { id: 'Cifre', name: 'Cifre', chars: '0123456789' },
+  { id: 'beginner', name: 'Beginner (ETAIN)', chars: 'ETAIN' },
+  { id: 'et', name: 'E & T', chars: 'ET' },
+  { id: 'numbers', name: 'Numbers (0-9)', chars: '0123456789' },
+  { id: 'intermediate', name: 'Intermediate (ETAINMSURW)', chars: 'ETAINMSURW' },
+  { id: 'full-letters', name: 'Full Letters', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' },
+  { id: 'full', name: 'Full (Letters + Numbers)', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' },
 ];
 
 const App: React.FC = () => {
@@ -243,38 +243,6 @@ const App: React.FC = () => {
             score={score}
             groupSize={settings.groupSize}
           />
-        </main>
-      </div>
-    </div>
-  );
-};
-
-export default App;  return (
-    <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-4xl mx-auto space-y-6">
-        <header className="text-center">
-          <h1 className="text-4xl font-bold text-teal-400">Morse Code Trainer</h1>
-        </header>
-
-        <main className="space-y-8">
-            <Controls
-                settings={settings}
-                onSettingsChange={handleSettingsChange}
-                characterSet={characterSet}
-                onCharacterSetChange={setCharacterSet}
-                preRunText={preRunText}
-                onPreRunTextChange={setPreRunText}
-                showCharacter={showCharacter}
-                onShowCharacterChange={setShowCharacter}
-                onPlay={handlePlay}
-                isPlaying={isPlaying}
-                isReady={isInitialized}
-            />
-            <CharacterDisplay 
-                text={generatedText}
-                showCharacter={showCharacter}
-                currentIndex={currentCharIndex}
-            />
         </main>
       </div>
     </div>
