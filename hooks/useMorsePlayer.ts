@@ -1,4 +1,3 @@
-// New ./hooks/useMorsePlayer.tsx
 import { useEffect, useRef, useState } from 'react';
 
 const MORSE_CODE = {
@@ -12,20 +11,22 @@ const MORSE_CODE = {
 };
 
 export const useMorsePlayer = (initialSettings) => {
-  const audioContextRef = useRef(null);
-  const oscillatorRef = useRef(null);
-  const gainNodeRef = useRef(null);
-  const timeoutsRef = useRef([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const timeoutsRef = useRef<any[]>([]);
   const [settings, setSettings] = useState(initialSettings);
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     return () => {
-      stop();
+      stop(); // Clean stop on unmount
     };
   }, []);
 
   const initializeAudio = () => {
+    if (audioContextRef.current) return;
+
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     audioContextRef.current = new AudioContext();
     oscillatorRef.current = audioContextRef.current.createOscillator();
@@ -36,7 +37,6 @@ export const useMorsePlayer = (initialSettings) => {
     gainNodeRef.current.gain.value = 0;
     oscillatorRef.current.connect(gainNodeRef.current);
 
-    // Add compressor to prevent clipping
     const compressor = audioContextRef.current.createDynamicsCompressor();
     compressor.threshold.value = -50;
     compressor.knee.value = 40;
@@ -51,32 +51,32 @@ export const useMorsePlayer = (initialSettings) => {
   };
 
   const updateSettings = (newSettings) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
-    if (oscillatorRef.current) {
-      if (newSettings.frequency) oscillatorRef.current.frequency.value = newSettings.frequency;
-      // Volume update during play would require ramp
+    setSettings(prev => ({ ...prev, ...newSettings }));
+    if (oscillatorRef.current && newSettings.frequency) {
+      oscillatorRef.current.frequency.value = newSettings.frequency;
     }
   };
 
-  const playTone = (duration) => {
-    const now = audioContextRef.current.currentTime;
-    gainNodeRef.current.gain.cancelScheduledValues(now);
-    gainNodeRef.current.gain.setValueAtTime(0, now);
-    gainNodeRef.current.gain.linearRampToValueAtTime(settings.volume, now + 0.01);
-    gainNodeRef.current.gain.linearRampToValueAtTime(0, now + duration / 1000 + 0.01);
+  const playTone = (duration: number) => {
+    const now = audioContextRef.current!.currentTime;
+    const gain = gainNodeRef.current!.gain;
+    gain.cancelScheduledValues(now);
+    gain.setValueAtTime(0, now);
+    gain.linearRampToValueAtTime(settings.volume, now + 0.01);
+    gain.linearRampToValueAtTime(0, now + duration / 1000 + 0.01);
   };
 
   const play = (text, onProgress, onFinish) => {
     if (!isInitialized) initializeAudio();
-    timeoutsRef.current.forEach(clearTimeout);
-    timeoutsRef.current = [];
+    stop();
 
-    const ditLength = 1200 / settings.wpm; // ms per dit
-    const charSpace = ditLength * settings.charSpaceDots;
-    const wordSpace = ditLength * settings.wordSpaceDots;
+    const dit = 1200 / settings.wpm;
+    const charSpace = dit * settings.charSpaceDots;
+    const wordSpace = dit * settings.wordSpaceDots;
 
     let index = 0;
     let delay = 0;
+
     for (const char of text) {
       if (char === ' ') {
         delay += wordSpace;
@@ -86,32 +86,27 @@ export const useMorsePlayer = (initialSettings) => {
       if (!code) continue;
 
       for (const symbol of code) {
-        const duration = symbol === '.' ? ditLength : ditLength * 3;
+        const duration = symbol === '.' ? dit : dit * 3;
         timeoutsRef.current.push(setTimeout(() => playTone(duration), delay));
-        delay += duration + ditLength; // intra-char space
+        delay += duration + dit;
       }
-      delay += charSpace - ditLength; // inter-char space
-      timeoutsRef.current.push(setTimeout(() => onProgress(index), delay - (charSpace - ditLength)));
+
+      timeoutsRef.current.push(setTimeout(() => onProgress(index), delay));
+      delay += charSpace - dit;
       index++;
     }
+
     timeoutsRef.current.push(setTimeout(onFinish, delay));
   };
 
   const stop = () => {
-    if (gainNodeRef.current) {
-      gainNodeRef.current.gain.cancelScheduledValues(audioContextRef.current.currentTime);
-      gainNodeRef.current.gain.setValueAtTime(0, audioContextRef.current.currentTime);
+    const now = audioContextRef.current?.currentTime;
+    if (gainNodeRef.current && now) {
+      gainNodeRef.current.gain.cancelScheduledValues(now);
+      gainNodeRef.current.gain.setTargetAtTime(0, now, 0.02); // Smooth fade
     }
     timeoutsRef.current.forEach(clearTimeout);
     timeoutsRef.current = [];
-    if (audioContextRef.current) {
-      audioContextRef.current.close().then(() => {
-        audioContextRef.current = null;
-        oscillatorRef.current = null;
-        gainNodeRef.current = null;
-        setIsInitialized(false);
-      });
-    }
   };
 
   return { play, stop, updateSettings, initializeAudio, isInitialized };
