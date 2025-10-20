@@ -31,7 +31,7 @@ const PREDEFINED_LESSONS: Lesson[] = [
   { id: 'DNFW', name: 'DNFW', chars: 'DNFW' },
   { id: 'ARZSJYEQTPIBCOLHDNFW', name: 'ARZSJYEQTPIBCOLHDNFW', chars: 'ARZSJYEQTPIBCOLHDNFW' },
   { id: 'full', name: 'Toate literele', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'},
-  { id: 'cifre', name: 'Cifre', chars: '0123456789'},
+  { id: 'cifre', name: 'Cifre', chars: '0123456789'}]
 
 
 const Controls: React.FC<ControlsProps> = ({
