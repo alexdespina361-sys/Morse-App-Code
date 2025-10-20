@@ -19,8 +19,6 @@ const App: React.FC = () => {
   // Core states
   const [settings, setSettings] = useState<MorseSettings>({
     wpm: 18,
-    charWpm: 15,    // added for Farnsworth
-    effWpm: 5.4,    // added for Farnsworth
     frequency: 750,
     volume: 0.7,
     charSpaceDots: 7,
@@ -291,36 +289,6 @@ const App: React.FC = () => {
         </header>
 
         <main className="space-y-8">
-
-          {/* Farnsworth sliders */}
-          <div className="space-y-4">
-            <div>
-              <label className="block mb-1">Character Speed (WPM): {settings.charWpm}</label>
-              <input
-                type="range"
-                min={5}
-                max={40}
-                step={0.1}
-                value={settings.charWpm}
-                onChange={e => handleSettingsChange('charWpm', parseFloat(e.target.value))}
-                className="w-full"
-              />
-            </div>
-
-            <div>
-              <label className="block mb-1">Effective Speed (WPM): {settings.effWpm}</label>
-              <input
-                type="range"
-                min={1}
-                max={20}
-                step={0.1}
-                value={settings.effWpm}
-                onChange={e => handleSettingsChange('effWpm', parseFloat(e.target.value))}
-                className="w-full"
-              />
-            </div>
-          </div>
-
           <Controls
             settings={settings}
             onSettingsChange={handleSettingsChange}
