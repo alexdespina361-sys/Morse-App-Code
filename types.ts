@@ -18,5 +18,11 @@ export type Lesson = {
 export type Score = {
   correct: number;
   total: number;
-  percentage: number;
+  score: number;
+};
+
+export type HistoryEntry = {
+  timestamp: string;
+  playedText: string;
+  score: Score | null;
 };
