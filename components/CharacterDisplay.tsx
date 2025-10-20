@@ -12,6 +12,7 @@ interface CharacterDisplayProps {
   onTranscriptionChange: (value: string) => void;
   score: Score | null;
   groupSize: number;
+  characterSet: string;
 }
 
 const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
@@ -24,6 +25,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
   onTranscriptionChange,
   score,
   groupSize,
+  characterSet,
 }) => {
   // Format text with groups for display
   const formattedText = useMemo(() => {
@@ -68,6 +70,13 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
     return chars.join('');
   }, [formattedText, showCharacter, currentIndex, transcriptionMode]);
 
+  // Unique keys from characterSet
+  const keys = useMemo(() => {
+    return Array.from(new Set(characterSet.split(''))).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true })
+    );
+  }, [characterSet]);
+
   if (!showCharacter && !transcriptionMode) {
     return (
       <div className="bg-gray-800 rounded-lg p-6 text-center h-32 flex items-center justify-center">
@@ -79,26 +88,48 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
   return (
     <div className="bg-gray-800 rounded-lg p-6 space-y-4">
       {transcriptionMode ? (
-        <>
-          <textarea
-            value={formattedUserInput}
-            onChange={(e) => onTranscriptionChange(e.target.value)}
-            className="w-full h-32 bg-gray-700 border border-gray-600 rounded-md p-2 text-gray-100 font-mono focus:outline-none focus:ring-2 focus:ring-teal-500"
-            placeholder="Type what you hear..."
-            autoFocus
-          />
-          {score && (
-            <div className="space-y-2">
-              <p className="text-lg font-bold text-teal-400">
-                Score: {score.percentage}% ({score.correct}/{score.total})
-              </p>
-              <div 
-                dangerouslySetInnerHTML={{ __html: highlightedText }} 
-                className="font-mono whitespace-pre-wrap text-gray-200"
-              />
+        score ? (
+          <div className="space-y-2">
+            <p className="text-lg font-bold text-teal-400">
+              Score: {score.percentage}% ({score.correct}/{score.total})
+            </p>
+            <div 
+              dangerouslySetInnerHTML={{ __html: highlightedText }} 
+              className="font-mono whitespace-pre-wrap text-gray-200"
+            />
+          </div>
+        ) : (
+          <>
+            <div className="w-full h-32 bg-gray-700 border border-gray-600 rounded-md p-2 text-gray-100 font-mono overflow-auto whitespace-pre-wrap">
+              {formattedUserInput}
             </div>
-          )}
-        </>
+            <div className="flex flex-wrap justify-center gap-2 mt-4">
+              {keys.map((k) => (
+                <button
+                  key={k}
+                  onClick={() => onTranscriptionChange(userTranscription + k)}
+                  className="bg-teal-500 text-gray-900 px-4 py-2 rounded-md text-xl font-bold"
+                >
+                  {k}
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-center gap-4 mt-4">
+              <button
+                onClick={() => onTranscriptionChange(userTranscription.slice(0, -1))}
+                className="bg-yellow-500 text-gray-900 px-4 py-2 rounded-md"
+              >
+                Backspace
+              </button>
+              <button
+                onClick={() => onTranscriptionChange('')}
+                className="bg-red-500 text-white px-4 py-2 rounded-md"
+              >
+                Clear
+              </button>
+            </div>
+          </>
+        )
       ) : (
         <div className="font-mono whitespace-pre-wrap text-gray-200 text-lg">
           <div dangerouslySetInnerHTML={{ __html: displayedText }} />
