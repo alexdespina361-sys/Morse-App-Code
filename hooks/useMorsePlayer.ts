@@ -1,3 +1,4 @@
+// Updated ./hooks/useMorsePlayer.tsx
 import { useEffect, useRef, useState } from 'react';
 
 const MORSE_CODE = {
@@ -20,7 +21,6 @@ export const useMorsePlayer = (initialSettings) => {
 
   useEffect(() => {
     return () => {
-      // Clean shutdown ONLY on unmount
       if (audioContextRef.current) {
         try {
           audioContextRef.current.close();
@@ -43,7 +43,6 @@ export const useMorsePlayer = (initialSettings) => {
     gainNodeRef.current.gain.value = 0;
     oscillatorRef.current.connect(gainNodeRef.current);
 
-    // Add compressor to prevent clipping
     const compressor = audioContextRef.current.createDynamicsCompressor();
     compressor.threshold.value = -50;
     compressor.knee.value = 40;
@@ -74,53 +73,60 @@ export const useMorsePlayer = (initialSettings) => {
   };
 
   const play = (text, onProgress, onFinish) => {
-  initializeAudio();
-  stop(); // prevent overlap
+    initializeAudio();
+    stop();
 
-  const dit = 1200 / settings.wpm;
-  const charSpace = dit * settings.charSpaceDots;
-  const wordSpace = dit * settings.wordSpaceDots;
+    const dit = 1200 / settings.wpm;
+    const charSpace = dit * settings.charSpaceDots;
+    const wordSpace = dit * settings.wordSpaceDots;
+    const groupSize = settings.groupSize;
 
-  let index = 0;
-  let delay = 0;
+    let index = 0;
+    let delay = 0;
+    let groupCount = 0;
 
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    
-    if (char === ' ' || char === '\n') {
-      // Word break - call onProgress for previous character first, then schedule space
-      if (i > 0) {
-        timeoutsRef.current.push(setTimeout(() => onProgress(index - 1), delay));
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (char === ' ' || char === '\n') {
+        if (i > 0) {
+          timeoutsRef.current.push(setTimeout(() => onProgress(i - 1), delay));
+        }
+        delay += wordSpace;
+        timeoutsRef.current.push(setTimeout(() => onProgress(i), delay));
+        groupCount = 0; // Reset group on word break
+        continue;
       }
-      delay += wordSpace;
-      timeoutsRef.current.push(setTimeout(() => onProgress(i), delay)); // Progress for space
-      continue;
+
+      const code = MORSE_CODE[char.toUpperCase()];
+      if (!code) {
+        timeoutsRef.current.push(setTimeout(() => onProgress(i), delay));
+        continue;
+      }
+
+      const charStartDelay = delay;
+      for (const symbol of code) {
+        const durMs = symbol === '.' ? dit : dit * 3;
+        timeoutsRef.current.push(setTimeout(() => playTone(durMs / 1000), delay));
+        delay += durMs + dit;
+      }
+
+      // Schedule group break if needed
+      groupCount++;
+      if (groupCount === groupSize && i + 1 < text.length && text[i + 1] !== ' ' && text[i + 1] !== '\n') {
+        delay += dit; // Add space between groups
+        timeoutsRef.current.push(setTimeout(() => onProgress(i, true), delay)); // Mark group end
+        groupCount = 0;
+      } else if (i + 1 === text.length || text[i + 1] === ' ' || text[i + 1] === '\n') {
+        timeoutsRef.current.push(setTimeout(() => onProgress(i), delay)); // Last char or word end
+        groupCount = 0;
+      } else {
+        delay += charSpace - dit;
+        timeoutsRef.current.push(setTimeout(() => onProgress(i), delay));
+      }
     }
 
-    const code = MORSE_CODE[char.toUpperCase()];
-    if (!code) {
-      timeoutsRef.current.push(setTimeout(() => onProgress(i), delay));
-      continue;
-    }
-
-    // Schedule character completion AFTER all its morse symbols
-    const charStartDelay = delay;
-    for (const symbol of code) {
-      const durMs = symbol === '.' ? dit : dit * 3;
-      timeoutsRef.current.push(setTimeout(() => playTone(durMs / 1000), delay));
-      delay += durMs + dit; // symbol + intra-char space
-    }
-    
-    // Call onProgress when character COMPLETES (after last symbol + inter-char space)
-    const charEndDelay = delay + (charSpace - dit);
-    timeoutsRef.current.push(setTimeout(() => onProgress(i), charEndDelay));
-    delay = charEndDelay;
-    index++;
-  }
-
-  // Final onFinish
-  timeoutsRef.current.push(setTimeout(onFinish, delay));
-};
+    timeoutsRef.current.push(setTimeout(onFinish, delay));
+  };
 
   const stop = () => {
     if (gainNodeRef.current && audioContextRef.current) {
