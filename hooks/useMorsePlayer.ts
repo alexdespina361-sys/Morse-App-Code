@@ -15,12 +15,20 @@ export const useMorsePlayer = (initialSettings) => {
   const oscillatorRef = useRef<any>(null);
   const gainNodeRef = useRef<any>(null);
   const timeoutsRef = useRef<any[]>([]);
-  const [settings, setSettings] = useState(initialSettings);
+  const [settings, setSettings] = useState({
+    charWpm: 15,    // character speed
+    effWpm: 5.4,    // effective (Farnsworth) speed
+    frequency: 600,
+    volume: 0.5,
+    charSpaceDots: 3,
+    wordSpaceDots: 7,
+    groupSize: 4,
+    ...initialSettings
+  });
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     return () => {
-      // close audio context on unmount only
       if (audioContextRef.current) {
         try { audioContextRef.current.close(); } catch {}
       }
@@ -73,71 +81,54 @@ export const useMorsePlayer = (initialSettings) => {
     gain.linearRampToValueAtTime(0, now + durationSec + 0.02);
   };
 
-  /**
-   * play(text, onProgress, onFinish)
-   * onProgress(indexInText, isGroupEnd = false)
-   * - indexInText is the index into the passed `text` string (includes preRun, spaces, newlines)
-   * - isGroupEnd indicates a group boundary (useful for UI to insert group spaces)
-   */
   const play = (text: string, onProgress: (i: number, isGroupEnd?: boolean) => void, onFinish: () => void) => {
     initializeAudio();
     stop();
 
-    const dit = 1200 / settings.wpm; // ms per dit
-    const charSpace = dit * settings.charSpaceDots;
-    const wordSpace = dit * settings.wordSpaceDots;
+    // Farnsworth timing
+    const ditChar = 1200 / settings.charWpm;   // duration of dit at character speed
+    const ditEff = 1200 / settings.effWpm;     // duration of dit at effective spacing speed
+    const charSpace = ditEff * settings.charSpaceDots;
+    const wordSpace = ditEff * settings.wordSpaceDots;
     const groupSize = settings.groupSize || 4;
 
     let delay = 0;
     let groupCount = 0;
-    let visibleCharCount = 0; // counts only non-space/newline chars (for group tracking)
 
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
 
       if (char === ' ' || char === '\n') {
-        // word/line break: schedule onProgress for the space itself (so UI can reflect it if needed)
         timeoutsRef.current.push(setTimeout(() => onProgress(i), delay));
         delay += wordSpace;
-        // reset group counter after a word break
         groupCount = 0;
         continue;
       }
 
       const code = MORSE_CODE[char.toUpperCase()];
       if (!code) {
-        // unknown char - still notify progress so UI doesn't hang
         timeoutsRef.current.push(setTimeout(() => onProgress(i), delay));
         continue;
       }
 
-      // Play each symbol in the character
       for (const symbol of code) {
-        const durMs = symbol === '.' ? dit : dit * 3;
+        const durMs = symbol === '.' ? ditChar : ditChar * 3;
         timeoutsRef.current.push(setTimeout(() => playTone(durMs / 1000), delay));
-        delay += durMs + dit; // symbol + intra-char gap
+        delay += durMs + ditEff; // intra-character spacing uses effective timing
       }
 
-      // After character finished, determine if a group boundary should be added
       groupCount++;
-      visibleCharCount++;
-
-      // If group completed and next char is not a space/newline and not end-of-text, insert group gap
       const nextIsChar = i + 1 < text.length && text[i + 1] !== ' ' && text[i + 1] !== '\n';
       if (groupCount === groupSize && nextIsChar) {
-        delay += dit; // small extra gap between groups
-        // schedule onProgress indicating group end (isGroupEnd = true)
+        delay += ditEff; // extra group gap
         timeoutsRef.current.push(setTimeout(() => onProgress(i, true), delay));
         groupCount = 0;
       } else {
-        // normal inter-character spacing
-        delay += charSpace - dit;
-        // schedule normal progress
+        delay += charSpace - ditEff;
         timeoutsRef.current.push(setTimeout(() => onProgress(i), delay));
       }
     }
 
-    // schedule finish
     timeoutsRef.current.push(setTimeout(onFinish, delay));
   };
 
@@ -151,5 +142,5 @@ export const useMorsePlayer = (initialSettings) => {
     timeoutsRef.current = [];
   };
 
-  return { play, stop, updateSettings, initializeAudio, isInitialized };
+  return { play, stop, updateSettings, initializeAudio, isInitialized, settings, setSettings };
 };
