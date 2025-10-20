@@ -1,18 +1,19 @@
 // Updated ./src/components/CharacterDisplay.tsx
 import React, { useMemo } from 'react';
-import { Score } from '../types';
+import { Score, HistoryEntry } from '../types';
 
 interface CharacterDisplayProps {
   text: string;
   showCharacter: boolean;
   currentIndex: number | null;
-  history: string[];
+  history: HistoryEntry[];
   transcriptionMode: boolean;
   userTranscription: string;
   onTranscriptionChange: (value: string) => void;
   score: Score | null;
   groupSize: number;
   characterSet: string;
+  isPlaying: boolean;
 }
 
 const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
@@ -26,12 +27,25 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
   score,
   groupSize,
   characterSet,
+  isPlaying,
 }) => {
   // Format text with groups for display
   const formattedText = useMemo(() => {
     if (!text || text === 'SET CHARS') return text;
-    return text.replace(/\n/g, '\n').split(' ').map(group => group.padEnd(groupSize, '_')).join(' ');
-  }, [text, groupSize]);
+    let effectiveText = text;
+    if (!transcriptionMode && isPlaying && currentIndex !== null) {
+      effectiveText = text.slice(0, currentIndex + 1);
+    }
+    const trimmedText = effectiveText.trimEnd();
+    const groups = trimmedText.split(' ');
+    const formattedGroups = groups.map((group, idx) => {
+      if (idx === groups.length - 1 && group.length < groupSize) {
+        return group;
+      }
+      return group.padEnd(groupSize, '_');
+    });
+    return formattedGroups.join(' ').replace(/\n/g, '\n');
+  }, [text, groupSize, transcriptionMode, isPlaying, currentIndex]);
 
   // For transcription: Auto-format input with spaces every groupSize
   const formattedUserInput = useMemo(() => {
@@ -66,7 +80,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
   const displayedText = useMemo(() => {
     if (!showCharacter || currentIndex === null || transcriptionMode) return formattedText;
     const chars = formattedText.split('');
-    chars[currentIndex] = `<span class="bg-teal-500 text-gray-900 px-1 rounded">${chars[currentIndex]}</span>`;
+    chars[currentIndex] = `<span class="bg-teal-500 text-gray-900 px-1 rounded">${chars[currentIndex] || ''}</span>`;
     return chars.join('');
   }, [formattedText, showCharacter, currentIndex, transcriptionMode]);
 
@@ -91,7 +105,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
         score ? (
           <div className="space-y-2">
             <p className="text-lg font-bold text-teal-400">
-              Score: {score.percentage}% ({score.correct}/{score.total})
+              Score: {score.score}/10 ({score.correct}/{score.total})
             </p>
             <div 
               dangerouslySetInnerHTML={{ __html: highlightedText }} 
@@ -140,9 +154,13 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
         <div className="mt-6 space-y-2">
           <h2 className="text-xl font-bold text-teal-400">History (Last {history.length})</h2>
           {history.map((entry, index) => (
-            <pre key={index} className="bg-gray-700 p-2 rounded-md text-sm whitespace-pre-wrap">
-              {entry}
-            </pre>
+            <div key={index} className="bg-gray-700 p-2 rounded-md text-sm">
+              <p className="font-bold">{new Date(entry.timestamp).toLocaleString()}</p>
+              <pre className="whitespace-pre-wrap">{entry.playedText}</pre>
+              {entry.score && (
+                <p>Score: {entry.score.score}/10 ({entry.score.correct}/{entry.score.total})</p>
+              )}
+            </div>
           ))}
         </div>
       )}
