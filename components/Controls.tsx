@@ -25,13 +25,14 @@ interface ControlsProps {
 }
 
 const PREDEFINED_LESSONS: Lesson[] = [
-  { id: 'beginner', name: 'Beginner (ETAIN)', chars: 'ETAIN' },
-  { id: 'et', name: 'E & T', chars: 'ET' },
-  { id: 'numbers', name: 'Numbers (0-9)', chars: '0123456789' },
-  { id: 'intermediate', name: 'Intermediate (ETAINMSURW)', chars: 'ETAINMSURW' },
-  { id: 'full-letters', name: 'Full Letters', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' },
-  { id: 'full', name: 'Full (Letters + Numbers)', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' },
-];
+  { id: 'ARZSJYEQTPIB', name: 'De bază', chars: 'ARZSJYEQTPIB' },
+  { id: 'COLH', name: 'COLH', chars: 'COLH' },
+  { id: 'ARZSJYEQTPIBCOLH', name: 'ARZSJYEQTPIBCOLH', chars: 'ARZSJYEQTPIBCOLH' },
+  { id: 'DNFW', name: 'DNFW', chars: 'DNFW' },
+  { id: 'ARZSJYEQTPIBCOLHDNFW', name: 'ARZSJYEQTPIBCOLHDNFW', chars: 'ARZSJYEQTPIBCOLHDNFW' },
+  { id: 'full', name: 'Toate literele', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'},
+  { id: 'cifre', name: 'Cifre', chars: '0123456789'},
+
 
 const Controls: React.FC<ControlsProps> = ({
   settings,
