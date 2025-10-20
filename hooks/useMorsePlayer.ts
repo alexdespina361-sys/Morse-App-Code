@@ -1,3 +1,4 @@
+// New ./hooks/useMorsePlayer.tsx
 import { useEffect, useRef, useState } from 'react';
 
 const MORSE_CODE = {
@@ -11,22 +12,28 @@ const MORSE_CODE = {
 };
 
 export const useMorsePlayer = (initialSettings) => {
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const oscillatorRef = useRef<OscillatorNode | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const timeoutsRef = useRef<any[]>([]);
+  const audioContextRef = useRef(null);
+  const oscillatorRef = useRef(null);
+  const gainNodeRef = useRef(null);
+  const timeoutsRef = useRef([]);
   const [settings, setSettings] = useState(initialSettings);
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     return () => {
-      stop(); // Clean stop on unmount
+      if (oscillatorRef.current && gainNodeRef.current && audioContextRef.current) {
+        gainNodeRef.current.gain.setValueAtTime(0, audioContextRef.current.currentTime);
+        oscillatorRef.current.disconnect();
+        gainNodeRef.current.disconnect();
+        audioContextRef.current.close();
+      }
+      timeoutsRef.current.forEach(clearTimeout);
+      timeoutsRef.current = [];
     };
   }, []);
 
   const initializeAudio = () => {
-    if (audioContextRef.current) return;
-
+    if (isInitialized) return;
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     audioContextRef.current = new AudioContext();
     oscillatorRef.current = audioContextRef.current.createOscillator();
@@ -36,7 +43,10 @@ export const useMorsePlayer = (initialSettings) => {
     oscillatorRef.current.frequency.value = settings.frequency;
     gainNodeRef.current.gain.value = 0;
     oscillatorRef.current.connect(gainNodeRef.current);
+    gainNodeRef.current.connect(audioContextRef.current.destination);
+    oscillatorRef.current.start();
 
+    // Add compressor to prevent clipping
     const compressor = audioContextRef.current.createDynamicsCompressor();
     compressor.threshold.value = -50;
     compressor.knee.value = 40;
@@ -46,64 +56,62 @@ export const useMorsePlayer = (initialSettings) => {
     gainNodeRef.current.connect(compressor);
     compressor.connect(audioContextRef.current.destination);
 
-    oscillatorRef.current.start();
     setIsInitialized(true);
   };
 
   const updateSettings = (newSettings) => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
-    if (oscillatorRef.current && newSettings.frequency) {
-      oscillatorRef.current.frequency.value = newSettings.frequency;
+    setSettings((prev) => ({ ...prev, ...newSettings }));
+    if (oscillatorRef.current) {
+      if (newSettings.frequency) oscillatorRef.current.frequency.value = newSettings.frequency;
+      // Volume update during play would require ramp
     }
   };
 
-  const playTone = (duration: number) => {
-    const now = audioContextRef.current!.currentTime;
-    const gain = gainNodeRef.current!.gain;
-    gain.cancelScheduledValues(now);
-    gain.setValueAtTime(0, now);
-    gain.linearRampToValueAtTime(settings.volume, now + 0.01);
-    gain.linearRampToValueAtTime(0, now + duration / 1000 + 0.01);
+  const playTone = (duration) => {
+    const now = audioContextRef.current.currentTime;
+    gainNodeRef.current.gain.setTargetAtTime(settings.volume, now, 0.001);
+    timeoutsRef.current.push(setTimeout(() => {
+      gainNodeRef.current.gain.setTargetAtTime(0, audioContextRef.current.currentTime, 0.001);
+    }, duration * 1000));
   };
 
   const play = (text, onProgress, onFinish) => {
-    if (!isInitialized) initializeAudio();
-    stop();
+    initializeAudio();
+    timeoutsRef.current.forEach(clearTimeout);
+    timeoutsRef.current = [];
 
-    const dit = 1200 / settings.wpm;
-    const charSpace = dit * settings.charSpaceDots;
-    const wordSpace = dit * settings.wordSpaceDots;
+    const ditLength = 1200 / settings.wpm; // ms per dit
+    const charSpace = ditLength * settings.charSpaceDots;
+    const wordSpace = ditLength * settings.wordSpaceDots;
 
     let index = 0;
-    let delay = 0;
+    const schedule = () => {
+      let delay = 0;
+      for (const char of text) {
+        if (char === ' ') {
+          delay += wordSpace;
+          continue;
+        }
+        const code = MORSE_CODE[char.toUpperCase()];
+        if (!code) continue;
 
-    for (const char of text) {
-      if (char === ' ') {
-        delay += wordSpace;
-        continue;
+        for (const symbol of code) {
+          const duration = symbol === '.' ? ditLength : ditLength * 3;
+          timeoutsRef.current.push(setTimeout(() => playTone(duration / 1000), delay));
+          delay += duration + ditLength; // intra-char space
+        }
+        delay += charSpace - ditLength; // inter-char space
+        onProgress(index);
+        index++;
       }
-      const code = MORSE_CODE[char.toUpperCase()];
-      if (!code) continue;
-
-      for (const symbol of code) {
-        const duration = symbol === '.' ? dit : dit * 3;
-        timeoutsRef.current.push(setTimeout(() => playTone(duration), delay));
-        delay += duration + dit;
-      }
-
-      timeoutsRef.current.push(setTimeout(() => onProgress(index), delay));
-      delay += charSpace - dit;
-      index++;
-    }
-
-    timeoutsRef.current.push(setTimeout(onFinish, delay));
+      timeoutsRef.current.push(setTimeout(onFinish, delay));
+    };
+    schedule();
   };
 
   const stop = () => {
-    const now = audioContextRef.current?.currentTime;
-    if (gainNodeRef.current && now) {
-      gainNodeRef.current.gain.cancelScheduledValues(now);
-      gainNodeRef.current.gain.setTargetAtTime(0, now, 0.02); // Smooth fade
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.setTargetAtTime(0, audioContextRef.current.currentTime, 0.001);
     }
     timeoutsRef.current.forEach(clearTimeout);
     timeoutsRef.current = [];
