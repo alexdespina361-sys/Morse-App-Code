@@ -21,7 +21,6 @@ interface ControlsProps {
   onTranscriptionModeChange: (value: boolean) => void;
   onPlay: () => void;
   isPlaying: boolean;
-  isReady: boolean;
   buttonText: string;
 }
 
