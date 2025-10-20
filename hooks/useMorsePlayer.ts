@@ -74,36 +74,53 @@ export const useMorsePlayer = (initialSettings) => {
   };
 
   const play = (text, onProgress, onFinish) => {
-    initializeAudio();
-    stop(); // prevent overlap
+  initializeAudio();
+  stop(); // prevent overlap
 
-    const dit = 1200 / settings.wpm;
-    const charSpace = dit * settings.charSpaceDots;
-    const wordSpace = dit * settings.wordSpaceDots;
+  const dit = 1200 / settings.wpm;
+  const charSpace = dit * settings.charSpaceDots;
+  const wordSpace = dit * settings.wordSpaceDots;
 
-    let index = 0;
-    let delay = 0;
+  let index = 0;
+  let delay = 0;
 
-    for (const char of text) {
-      if (char === ' ') {
-        delay += wordSpace;
-        continue;
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    
+    if (char === ' ' || char === '\n') {
+      // Word break - call onProgress for previous character first, then schedule space
+      if (i > 0) {
+        timeoutsRef.current.push(setTimeout(() => onProgress(index - 1), delay));
       }
-      const code = MORSE_CODE[char.toUpperCase()];
-      if (!code) continue;
-
-      for (const symbol of code) {
-        const durMs = symbol === '.' ? dit : dit * 3;
-        timeoutsRef.current.push(setTimeout(() => playTone(durMs / 1000), delay));
-        delay += durMs + dit;
-      }
-      timeoutsRef.current.push(setTimeout(() => onProgress(index), delay));
-      delay += charSpace - dit;
-      index++;
+      delay += wordSpace;
+      timeoutsRef.current.push(setTimeout(() => onProgress(i), delay)); // Progress for space
+      continue;
     }
 
-    timeoutsRef.current.push(setTimeout(onFinish, delay));
-  };
+    const code = MORSE_CODE[char.toUpperCase()];
+    if (!code) {
+      timeoutsRef.current.push(setTimeout(() => onProgress(i), delay));
+      continue;
+    }
+
+    // Schedule character completion AFTER all its morse symbols
+    const charStartDelay = delay;
+    for (const symbol of code) {
+      const durMs = symbol === '.' ? dit : dit * 3;
+      timeoutsRef.current.push(setTimeout(() => playTone(durMs / 1000), delay));
+      delay += durMs + dit; // symbol + intra-char space
+    }
+    
+    // Call onProgress when character COMPLETES (after last symbol + inter-char space)
+    const charEndDelay = delay + (charSpace - dit);
+    timeoutsRef.current.push(setTimeout(() => onProgress(i), charEndDelay));
+    delay = charEndDelay;
+    index++;
+  }
+
+  // Final onFinish
+  timeoutsRef.current.push(setTimeout(onFinish, delay));
+};
 
   const stop = () => {
     if (gainNodeRef.current && audioContextRef.current) {
