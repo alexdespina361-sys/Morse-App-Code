@@ -1,5 +1,4 @@
-// Updated ./src/App.tsx
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useMorsePlayer } from '../hooks/useMorsePlayer';
 import { MorseSettings, Lesson, Score, HistoryEntry } from '../types';
 import Controls from '../components/Controls';
@@ -33,7 +32,7 @@ const App: React.FC = () => {
   const [showCharacter, setShowCharacter] = useState<boolean>(true);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentCharIndex, setCurrentCharIndex] = useState<number | null>(null);
-  
+
   // New states for features
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [transcriptionMode, setTranscriptionMode] = useState<boolean>(false);
@@ -43,28 +42,39 @@ const App: React.FC = () => {
   const [customLesson, setCustomLesson] = useState<string>('');
   const [startTime, setStartTime] = useState<string | null>(null);
 
+  const displayedTextRef = useRef<string>('');
+  const currentPlayTextRef = useRef<string>('');
+  const preRunLenRef = useRef<number>(0);
+
   const { play, stop, updateSettings, initializeAudio, isInitialized } = useMorsePlayer(settings);
 
-  // localStorage persistence
+  // localStorage persistence (load)
   useEffect(() => {
     const saved = localStorage.getItem('morseTrainerState');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        setSettings(parsed.settings || settings);
-        setCharacterSet(parsed.characterSet || characterSet);
-        setPreRunText(parsed.preRunText || preRunText);
+        if (parsed.settings) setSettings(parsed.settings);
+        if (parsed.characterSet) setCharacterSet(parsed.characterSet);
+        if (parsed.preRunText) setPreRunText(parsed.preRunText);
         setShowCharacter(parsed.showCharacter ?? true);
         setTranscriptionMode(parsed.transcriptionMode ?? false);
         setHistory(parsed.history || []);
-        const savedLesson = PREDEFINED_LESSONS.find(l => l.chars === parsed.characterSet);
-        if (savedLesson) setSelectedLesson(savedLesson);
+        // Restore selected lesson by id if present, fallback to matching characterSet
+        if (parsed.selectedLessonId) {
+          const l = PREDEFINED_LESSONS.find(ll => ll.id === parsed.selectedLessonId);
+          if (l) setSelectedLesson(l);
+        } else if (parsed.characterSet) {
+          const savedLesson = PREDEFINED_LESSONS.find(l => l.chars === parsed.characterSet);
+          if (savedLesson) setSelectedLesson(savedLesson);
+        }
       } catch (e) {
-        console.error('Failed to load saved state');
+        console.error('Failed to load saved state', e);
       }
     }
   }, []);
 
+  // localStorage persistence (save)
   useEffect(() => {
     localStorage.setItem(
       'morseTrainerState',
@@ -75,9 +85,10 @@ const App: React.FC = () => {
         showCharacter,
         transcriptionMode,
         history,
+        selectedLessonId: selectedLesson ? selectedLesson.id : null,
       })
     );
-  }, [settings, characterSet, preRunText, showCharacter, transcriptionMode, history]);
+  }, [settings, characterSet, preRunText, showCharacter, transcriptionMode, history, selectedLesson]);
 
   // Lesson handling
   const handleLessonChange = useCallback((lessonId: string) => {
@@ -135,12 +146,18 @@ const App: React.FC = () => {
     }
   }, [startTime]);
 
+  // Keep refs in sync with displayedText state to avoid stale closures
+  useEffect(() => { displayedTextRef.current = displayedText; }, [displayedText]);
+
   const handlePlay = useCallback(async () => {
     if (isPlaying) {
+      // Stop playing (user pressed Stop)
       stop();
+      // small pause to let audio stop
       await new Promise(resolve => setTimeout(resolve, 200));
-      const playedLength = currentCharIndex !== null ? currentCharIndex + 1 : displayedText.length;
-      const playedText = displayedText.slice(0, playedLength).replace(/\s+$/, '');
+
+      // Determine played text (what was shown to the user)
+      const playedText = displayedTextRef.current || '';
       setGeneratedText(playedText);
       setDisplayedText(playedText);
       let computedScore = null;
@@ -149,23 +166,31 @@ const App: React.FC = () => {
         setScore(computedScore);
       }
       addToHistory(playedText, computedScore);
+
       setIsPlaying(false);
       setCurrentCharIndex(null);
       setStartTime(null);
+      currentPlayTextRef.current = '';
+      preRunLenRef.current = 0;
     } else {
       if (!isInitialized) initializeAudio();
+
+      // Reset states for a new run
       setGeneratedText('');
       setDisplayedText('');
+      displayedTextRef.current = '';
       setUserTranscription('');
       setScore(null);
       setCurrentCharIndex(null);
       setStartTime(new Date().toISOString());
+
       if (characterSet.length === 0) {
         setGeneratedText('SET CHARS');
         setDisplayedText('SET CHARS');
         return;
       }
-      
+
+      // Build random grouped text
       let text = '';
       let groupCount = 0;
       for (let i = 0; i < settings.totalChars; i++) {
@@ -176,29 +201,62 @@ const App: React.FC = () => {
         }
       }
       setGeneratedText(text);
-      
+
       const upperCasePreRun = preRunText.toUpperCase().trim();
       const textToPlay = upperCasePreRun ? `${upperCasePreRun} ${text}` : text;
       const preRunLength = upperCasePreRun ? upperCasePreRun.length + 1 : 0;
 
+      // Save text to refs for use in callbacks to avoid stale closures
+      currentPlayTextRef.current = textToPlay;
+      preRunLenRef.current = preRunLength;
+
       setIsPlaying(true);
+
       play(
         textToPlay,
-        (index, isGroupEnd = false) => {
-          if (index >= preRunLength) {
-            const charIndex = index - preRunLength;
-            setCurrentCharIndex(charIndex);
-            setDisplayedText(prev => {
-              const currentChar = textToPlay[index];
-              if (isGroupEnd && charIndex % settings.groupSize === 0 && charIndex > 0) {
-                return prev + ' ';
-              }
-              return prev + currentChar;
-            });
+        // onProgress: (index in textToPlay, isGroupEnd)
+        (index: number, isGroupEnd = false) => {
+          const fullText = currentPlayTextRef.current;
+          if (!fullText) return;
+
+          // Only update UI for chars after the pre-run area
+          if (index < preRunLenRef.current) {
+            // We skip showing pre-run characters in displayedText (they are just a cue)
+            // But we might want to update currentCharIndex so Stop can calculate played length
+            const charIndex = index - preRunLenRef.current;
+            setCurrentCharIndex(charIndex >= 0 ? charIndex : null);
+            return;
           }
+
+          const charIndex = index - preRunLenRef.current;
+          const char = fullText[index];
+
+          // Append displayed char (handle group end spacing if flagged)
+          setDisplayedText(prev => {
+            let next = prev;
+            // If character itself is a newline or space, append it as-is
+            if (char === ' ' || char === '\n') {
+              next = next + char;
+            } else {
+              next = next + char;
+            }
+
+            if (isGroupEnd) {
+              // ensure single space inserted between groups
+              // but avoid double-space if char was space/newline
+              if (!next.endsWith(' ')) next = next + ' ';
+            }
+
+            // keep ref in sync
+            displayedTextRef.current = next;
+            return next;
+          });
+
+          setCurrentCharIndex(charIndex);
         },
+        // onFinish
         () => {
-          const playedText = displayedText;
+          const playedText = displayedTextRef.current || '';
           let computedScore = null;
           if (transcriptionMode && playedText && userTranscription) {
             computedScore = computeScore(playedText, userTranscription, settings.groupSize);
@@ -208,10 +266,25 @@ const App: React.FC = () => {
           setIsPlaying(false);
           setCurrentCharIndex(null);
           setStartTime(null);
+          currentPlayTextRef.current = '';
+          preRunLenRef.current = 0;
         }
       );
     }
-  }, [isPlaying, isInitialized, play, stop, initializeAudio, characterSet, settings, preRunText, transcriptionMode, userTranscription, computeScore, addToHistory, currentCharIndex, displayedText]);
+  }, [
+    isPlaying,
+    isInitialized,
+    play,
+    stop,
+    initializeAudio,
+    characterSet,
+    settings,
+    preRunText,
+    transcriptionMode,
+    userTranscription,
+    computeScore,
+    addToHistory
+  ]);
 
   const handleTranscriptionChange = useCallback((value: string) => {
     const filtered = value.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -261,7 +334,7 @@ const App: React.FC = () => {
             isPlaying={isPlaying}
             buttonText={buttonText}
           />
-          <CharacterDisplay 
+          <CharacterDisplay
             text={displayedText}
             showCharacter={showCharacter}
             currentIndex={currentCharIndex}
@@ -281,3 +354,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+    
