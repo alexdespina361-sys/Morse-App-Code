@@ -26,12 +26,12 @@ interface ControlsProps {
 }
 
 const PREDEFINED_LESSONS: Lesson[] = [
-  { id: 'QERTYIPASJZB', name: 'QERTYIPASJZB', chars: 'QERTYIPASJZB' },
-  { id: 'COLH', name: 'COLH', chars: 'COLH' },
-  { id: 'Numere', name: 'Numere (0-9)', chars: '0123456789' },
-  { id: 'QERTYIPASJZBCOLH', name: 'QERTYIPASJZBCOLH', chars: 'QERTYIPASJZBCOLH' },
-  { id: 'Litere', name: 'Litere', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' },
-  { id: 'Cifre', name: 'Cifre', chars: '0123456789' },
+  { id: 'beginner', name: 'Beginner (ETAIN)', chars: 'ETAIN' },
+  { id: 'et', name: 'E & T', chars: 'ET' },
+  { id: 'numbers', name: 'Numbers (0-9)', chars: '0123456789' },
+  { id: 'intermediate', name: 'Intermediate (ETAINMSURW)', chars: 'ETAINMSURW' },
+  { id: 'full-letters', name: 'Full Letters', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' },
+  { id: 'full', name: 'Full (Letters + Numbers)', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' },
 ];
 
 const Controls: React.FC<ControlsProps> = ({
@@ -51,7 +51,6 @@ const Controls: React.FC<ControlsProps> = ({
   onTranscriptionModeChange,
   onPlay,
   isPlaying,
-  isReady,
   buttonText,
 }) => {
   return (
@@ -216,12 +215,11 @@ const Controls: React.FC<ControlsProps> = ({
       <div className="flex justify-center">
         <button
           onClick={onPlay}
-          disabled={!isReady && !isPlaying}
           className={`px-6 py-2 flex items-center gap-2 font-bold rounded-md transition-all duration-200 text-lg ${
             isPlaying 
               ? 'bg-red-600 hover:bg-red-700 text-white' 
               : 'bg-teal-500 hover:bg-teal-600 text-gray-900'
-          } ${(!isReady && !isPlaying) ? 'opacity-50 cursor-not-allowed' : ''}`}
+          }`}
         >
           {isPlaying ? <StopIcon /> : <PlayIcon />}
           <span>{buttonText}</span>
