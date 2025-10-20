@@ -131,7 +131,7 @@ const App: React.FC = () => {
 
   const addToHistory = useCallback((playedText: string, computedScore: Score | null) => {
     if (startTime && playedText) {
-      setHistory(prev => [...prev.slice(-19), { timestamp: startTime, playedText, score: computedScore }]);
+      setHistory(prev => [...prev.slice(-49), { timestamp: startTime, playedText, score: computedScore }]);
     }
   }, [startTime]);
 
@@ -140,7 +140,7 @@ const App: React.FC = () => {
       // Stop
       stop();
       const playedLength = currentCharIndex !== null ? currentCharIndex + 1 : generatedText.length;
-      const playedText = generatedText.slice(0, playedLength).replace(/\s+$/, '');
+      const playedText = generatedText.slice(0, playedLength).replace(/\s+$/, '').replace(/_+$/, '');
       setGeneratedText(playedText);
       let computedScore: Score | null = null;
       if (transcriptionMode && playedText && userTranscription) {
@@ -216,6 +216,20 @@ const App: React.FC = () => {
     setUserTranscription(filtered);
   }, []);
 
+  const handleShowCharacterChange = useCallback((value: boolean) => {
+    setShowCharacter(value);
+    if (value) {
+      setTranscriptionMode(false);
+    }
+  }, []);
+
+  const handleTranscriptionModeChange = useCallback((value: boolean) => {
+    setTranscriptionMode(value);
+    if (value) {
+      setShowCharacter(false);
+    }
+  }, []);
+
   const buttonText = isPlaying ? 'Stop' : 'Start';
 
   return (
@@ -238,9 +252,9 @@ const App: React.FC = () => {
             preRunText={preRunText}
             onPreRunTextChange={setPreRunText}
             showCharacter={showCharacter}
-            onShowCharacterChange={setShowCharacter}
+            onShowCharacterChange={handleShowCharacterChange}
             transcriptionMode={transcriptionMode}
-            onTranscriptionModeChange={setTranscriptionMode}
+            onTranscriptionModeChange={handleTranscriptionModeChange}
             onPlay={handlePlay}
             isPlaying={isPlaying}
             buttonText={buttonText}
