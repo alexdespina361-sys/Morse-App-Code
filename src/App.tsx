@@ -12,12 +12,15 @@ const PREDEFINED_LESSONS: Lesson[] = [
   { id: 'DNFW', name: 'DNFW', chars: 'DNFW' },
   { id: 'ARZSJYEQTPIBCOLHDNFW', name: 'ARZSJYEQTPIBCOLHDNFW', chars: 'ARZSJYEQTPIBCOLHDNFW' },
   { id: 'full', name: 'Toate literele', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'},
-  { id: 'cifre', name: 'Cifre', chars: '0123456789'}]
+  { id: 'cifre', name: 'Cifre', chars: '0123456789'}
+];
 
 const App: React.FC = () => {
   // Core states
   const [settings, setSettings] = useState<MorseSettings>({
     wpm: 18,
+    charWpm: 15,    // added for Farnsworth
+    effWpm: 5.4,    // added for Farnsworth
     frequency: 750,
     volume: 0.7,
     charSpaceDots: 7,
@@ -60,7 +63,6 @@ const App: React.FC = () => {
         setShowCharacter(parsed.showCharacter ?? true);
         setTranscriptionMode(parsed.transcriptionMode ?? false);
         setHistory(parsed.history || []);
-        // Restore selected lesson by id if present, fallback to matching characterSet
         if (parsed.selectedLessonId) {
           const l = PREDEFINED_LESSONS.find(ll => ll.id === parsed.selectedLessonId);
           if (l) setSelectedLesson(l);
@@ -146,17 +148,12 @@ const App: React.FC = () => {
     }
   }, [startTime]);
 
-  // Keep refs in sync with displayedText state to avoid stale closures
   useEffect(() => { displayedTextRef.current = displayedText; }, [displayedText]);
 
   const handlePlay = useCallback(async () => {
     if (isPlaying) {
-      // Stop playing (user pressed Stop)
       stop();
-      // small pause to let audio stop
       await new Promise(resolve => setTimeout(resolve, 200));
-
-      // Determine played text (what was shown to the user)
       const playedText = displayedTextRef.current || '';
       setGeneratedText(playedText);
       setDisplayedText(playedText);
@@ -166,7 +163,6 @@ const App: React.FC = () => {
         setScore(computedScore);
       }
       addToHistory(playedText, computedScore);
-
       setIsPlaying(false);
       setCurrentCharIndex(null);
       setStartTime(null);
@@ -174,8 +170,6 @@ const App: React.FC = () => {
       preRunLenRef.current = 0;
     } else {
       if (!isInitialized) initializeAudio();
-
-      // Reset states for a new run
       setGeneratedText('');
       setDisplayedText('');
       displayedTextRef.current = '';
@@ -190,7 +184,6 @@ const App: React.FC = () => {
         return;
       }
 
-      // Build random grouped text
       let text = '';
       let groupCount = 0;
       for (let i = 0; i < settings.totalChars; i++) {
@@ -206,7 +199,6 @@ const App: React.FC = () => {
       const textToPlay = upperCasePreRun ? `${upperCasePreRun} ${text}` : text;
       const preRunLength = upperCasePreRun ? upperCasePreRun.length + 1 : 0;
 
-      // Save text to refs for use in callbacks to avoid stale closures
       currentPlayTextRef.current = textToPlay;
       preRunLenRef.current = preRunLength;
 
@@ -214,15 +206,11 @@ const App: React.FC = () => {
 
       play(
         textToPlay,
-        // onProgress: (index in textToPlay, isGroupEnd)
         (index: number, isGroupEnd = false) => {
           const fullText = currentPlayTextRef.current;
           if (!fullText) return;
 
-          // Only update UI for chars after the pre-run area
           if (index < preRunLenRef.current) {
-            // We skip showing pre-run characters in displayedText (they are just a cue)
-            // But we might want to update currentCharIndex so Stop can calculate played length
             const charIndex = index - preRunLenRef.current;
             setCurrentCharIndex(charIndex >= 0 ? charIndex : null);
             return;
@@ -231,30 +219,22 @@ const App: React.FC = () => {
           const charIndex = index - preRunLenRef.current;
           const char = fullText[index];
 
-          // Append displayed char (handle group end spacing if flagged)
           setDisplayedText(prev => {
             let next = prev;
-            // If character itself is a newline or space, append it as-is
             if (char === ' ' || char === '\n') {
               next = next + char;
             } else {
               next = next + char;
             }
-
             if (isGroupEnd) {
-              // ensure single space inserted between groups
-              // but avoid double-space if char was space/newline
               if (!next.endsWith(' ')) next = next + ' ';
             }
-
-            // keep ref in sync
             displayedTextRef.current = next;
             return next;
           });
 
           setCurrentCharIndex(charIndex);
         },
-        // onFinish
         () => {
           const playedText = displayedTextRef.current || '';
           let computedScore = null;
@@ -293,16 +273,12 @@ const App: React.FC = () => {
 
   const handleShowCharacterChange = useCallback((value: boolean) => {
     setShowCharacter(value);
-    if (value) {
-      setTranscriptionMode(false);
-    }
+    if (value) setTranscriptionMode(false);
   }, []);
 
   const handleTranscriptionModeChange = useCallback((value: boolean) => {
     setTranscriptionMode(value);
-    if (value) {
-      setShowCharacter(false);
-    }
+    if (value) setShowCharacter(false);
   }, []);
 
   const buttonText = isPlaying ? 'Stop' : 'Start';
@@ -315,6 +291,36 @@ const App: React.FC = () => {
         </header>
 
         <main className="space-y-8">
+
+          {/* Farnsworth sliders */}
+          <div className="space-y-4">
+            <div>
+              <label className="block mb-1">Character Speed (WPM): {settings.charWpm}</label>
+              <input
+                type="range"
+                min={5}
+                max={40}
+                step={0.1}
+                value={settings.charWpm}
+                onChange={e => handleSettingsChange('charWpm', parseFloat(e.target.value))}
+                className="w-full"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1">Effective Speed (WPM): {settings.effWpm}</label>
+              <input
+                type="range"
+                min={1}
+                max={20}
+                step={0.1}
+                value={settings.effWpm}
+                onChange={e => handleSettingsChange('effWpm', parseFloat(e.target.value))}
+                className="w-full"
+              />
+            </div>
+          </div>
+
           <Controls
             settings={settings}
             onSettingsChange={handleSettingsChange}
