@@ -7,12 +7,12 @@ import CharacterDisplay from '../components/CharacterDisplay';
 
 // Predefined lessons
 const PREDEFINED_LESSONS: Lesson[] = [
-  { id: 'QERTYIPASJZB', name: 'QERTYIPASJZB', chars: 'QERTYIPASJZB' },
-  { id: 'COLH', name: 'COLH', chars: 'COLH' },
-  { id: 'Numere', name: 'Numere (0-9)', chars: '0123456789' },
-  { id: 'QERTYIPASJZBCOLH', name: 'QERTYIPASJZBCOLH', chars: 'QERTYIPASJZBCOLH' },
-  { id: 'Litere', name: 'Litere', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' },
-  { id: 'Cifre', name: 'Cifre', chars: '0123456789' },
+  { id: 'beginner', name: 'Beginner (ETAIN)', chars: 'ETAIN' },
+  { id: 'et', name: 'E & T', chars: 'ET' },
+  { id: 'numbers', name: 'Numbers (0-9)', chars: '0123456789' },
+  { id: 'intermediate', name: 'Intermediate (ETAINMSURW)', chars: 'ETAINMSURW' },
+  { id: 'full-letters', name: 'Full Letters', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' },
+  { id: 'full', name: 'Full (Letters + Numbers)', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' },
 ];
 
 const App: React.FC = () => {
@@ -108,7 +108,7 @@ const App: React.FC = () => {
   // Compute score from groups
   const computeScore = useCallback((playedText: string, userText: string, groupSize: number): Score => {
     const playedGroups = playedText.replace(/\n/g, ' ').split(' ').filter(g => g.length > 0);
-    const userInput = userText.toUpperCase().replace(/[^A-Z]/g, '');
+    const userInput = userText.toUpperCase().replace(/[^A-Z0-9]/g, '');
     const userGroups: string[] = [];
     for (let i = 0; i < userInput.length; i += groupSize) {
       userGroups.push(userInput.slice(i, i + groupSize));
@@ -142,15 +142,15 @@ const App: React.FC = () => {
       setCurrentCharIndex(null);
       // Keep generatedText and userTranscription
     } else {
+      if (!isInitialized) {
+        initializeAudio();
+        return;
+      }
       // Start new
       setGeneratedText('');
       setUserTranscription('');
       setScore(null);
       setCurrentCharIndex(null);
-      if (!isInitialized) {
-        initializeAudio();
-        return;
-      }
       if (characterSet.length === 0) {
         setGeneratedText('SET CHARS');
         return;
@@ -202,7 +202,7 @@ const App: React.FC = () => {
     setUserTranscription(filtered);
   }, []);
 
-  const buttonText = isPlaying ? 'Stop' : 'Start';
+  const buttonText = isPlaying ? 'Stop' : isInitialized ? 'Start' : 'Enable Audio';
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col items-center justify-center p-4">
@@ -242,6 +242,7 @@ const App: React.FC = () => {
             onTranscriptionChange={handleTranscriptionChange}
             score={score}
             groupSize={settings.groupSize}
+            characterSet={characterSet}
           />
         </main>
       </div>
