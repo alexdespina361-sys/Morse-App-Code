@@ -1,7 +1,7 @@
 // Updated ./src/App.tsx
 import React, { useState, useCallback, useEffect } from 'react';
 import { useMorsePlayer } from '../hooks/useMorsePlayer';
-import { MorseSettings, Lesson, Score } from '../types';
+import { MorseSettings, Lesson, Score, HistoryEntry } from '../types';
 import Controls from '../components/Controls';
 import CharacterDisplay from '../components/CharacterDisplay';
 
@@ -34,12 +34,13 @@ const App: React.FC = () => {
   const [currentCharIndex, setCurrentCharIndex] = useState<number | null>(null);
   
   // New states for features
-  const [history, setHistory] = useState<string[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [transcriptionMode, setTranscriptionMode] = useState<boolean>(false);
   const [userTranscription, setUserTranscription] = useState<string>('');
   const [score, setScore] = useState<Score | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(PREDEFINED_LESSONS[0]);
   const [customLesson, setCustomLesson] = useState<string>('');
+  const [startTime, setStartTime] = useState<string | null>(null);
 
   const { play, stop, updateSettings, initializeAudio, isInitialized } = useMorsePlayer(settings);
 
@@ -124,33 +125,44 @@ const App: React.FC = () => {
         }
       }
     });
-    const percentage = total > 0 ? Math.round((correct / total) * 100) : 0;
-    return { correct, total, percentage };
+    const scoreValue = total > 0 ? Math.round((correct / total) * 10) : 0;
+    return { correct, total, score: scoreValue };
   }, []);
+
+  const addToHistory = useCallback((playedText: string, computedScore: Score | null) => {
+    if (startTime && playedText) {
+      setHistory(prev => [...prev.slice(-19), { timestamp: startTime, playedText, score: computedScore }]);
+    }
+  }, [startTime]);
 
   const handlePlay = useCallback(() => {
     if (isPlaying) {
       // Stop
       stop();
-      if (generatedText) {
-        setHistory(prev => [...prev.slice(-19), generatedText]); // Keep last 20 max
+      const playedLength = currentCharIndex !== null ? currentCharIndex + 1 : generatedText.length;
+      const playedText = generatedText.slice(0, playedLength).replace(/\s+$/, '');
+      setGeneratedText(playedText);
+      let computedScore: Score | null = null;
+      if (transcriptionMode && playedText && userTranscription) {
+        computedScore = computeScore(playedText, userTranscription, settings.groupSize);
+        setScore(computedScore);
       }
-      if (transcriptionMode && generatedText && userTranscription) {
-        setScore(computeScore(generatedText, userTranscription, settings.groupSize));
-      }
+      addToHistory(playedText, computedScore);
       setIsPlaying(false);
       setCurrentCharIndex(null);
+      setStartTime(null);
       // Keep generatedText and userTranscription
     } else {
+      // Initialize if needed
       if (!isInitialized) {
         initializeAudio();
-        return;
       }
       // Start new
       setGeneratedText('');
       setUserTranscription('');
       setScore(null);
       setCurrentCharIndex(null);
+      setStartTime(new Date().toISOString());
       if (characterSet.length === 0) {
         setGeneratedText('SET CHARS');
         return;
@@ -183,18 +195,20 @@ const App: React.FC = () => {
         },
         () => {
           // Finish
-          if (generatedText) {
-            setHistory(prev => [...prev.slice(-19), generatedText]);
+          const playedText = generatedText;
+          let computedScore: Score | null = null;
+          if (transcriptionMode && playedText && userTranscription) {
+            computedScore = computeScore(playedText, userTranscription, settings.groupSize);
+            setScore(computedScore);
           }
-          if (transcriptionMode && generatedText && userTranscription) {
-            setScore(computeScore(generatedText, userTranscription, settings.groupSize));
-          }
+          addToHistory(playedText, computedScore);
           setIsPlaying(false);
           setCurrentCharIndex(null);
+          setStartTime(null);
         }
       );
     }
-  }, [isPlaying, isInitialized, play, stop, initializeAudio, characterSet, settings, preRunText, generatedText, transcriptionMode, userTranscription, computeScore]);
+  }, [isPlaying, isInitialized, play, stop, initializeAudio, characterSet, settings, preRunText, generatedText, transcriptionMode, userTranscription, computeScore, addToHistory, currentCharIndex]);
 
   const handleTranscriptionChange = useCallback((value: string) => {
     // Enforce uppercase letters only, later spacing in display
@@ -202,7 +216,7 @@ const App: React.FC = () => {
     setUserTranscription(filtered);
   }, []);
 
-  const buttonText = isPlaying ? 'Stop' : isInitialized ? 'Start' : 'Enable Audio';
+  const buttonText = isPlaying ? 'Stop' : 'Start';
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col items-center justify-center p-4">
@@ -229,7 +243,6 @@ const App: React.FC = () => {
             onTranscriptionModeChange={setTranscriptionMode}
             onPlay={handlePlay}
             isPlaying={isPlaying}
-            isReady={isInitialized}
             buttonText={buttonText}
           />
           <CharacterDisplay 
@@ -243,6 +256,7 @@ const App: React.FC = () => {
             score={score}
             groupSize={settings.groupSize}
             characterSet={characterSet}
+            isPlaying={isPlaying}
           />
         </main>
       </div>
