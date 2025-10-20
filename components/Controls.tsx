@@ -1,37 +1,62 @@
+// Updated ./src/components/Controls.tsx
 import React from 'react';
-import { MorseSettings } from '../types';
+import { MorseSettings, Lesson } from '../types';
 import Slider from './Slider';
 import { PlayIcon, StopIcon } from './Icons';
 
 interface ControlsProps {
   settings: MorseSettings;
-  onSettingsChange: <K extends keyof MorseSettings,>(key: K, value: MorseSettings[K]) => void;
+  onSettingsChange: <K extends keyof MorseSettings>(key: K, value: MorseSettings[K]) => void;
+  selectedLesson: Lesson | null;
+  onLessonChange: (id: string) => void;
+  customLesson: string;
+  onCustomLessonChange: (value: string) => void;
   characterSet: string;
   onCharacterSetChange: (value: string) => void;
   preRunText: string;
   onPreRunTextChange: (value: string) => void;
   showCharacter: boolean;
   onShowCharacterChange: (value: boolean) => void;
+  transcriptionMode: boolean;
+  onTranscriptionModeChange: (value: boolean) => void;
   onPlay: () => void;
   isPlaying: boolean;
   isReady: boolean;
+  buttonText: string;
 }
+
+const PREDEFINED_LESSONS: Lesson[] = [
+  { id: 'beginner', name: 'Beginner (ETAIN)', chars: 'ETAIN' },
+  { id: 'et', name: 'E & T', chars: 'ET' },
+  { id: 'numbers', name: 'Numbers (0-9)', chars: '0123456789' },
+  { id: 'intermediate', name: 'Intermediate (ETAINMSURW)', chars: 'ETAINMSURW' },
+  { id: 'full-letters', name: 'Full Letters', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' },
+  { id: 'full', name: 'Full (Letters + Numbers)', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789' },
+];
 
 const Controls: React.FC<ControlsProps> = ({
   settings,
   onSettingsChange,
+  selectedLesson,
+  onLessonChange,
+  customLesson,
+  onCustomLessonChange,
   characterSet,
   onCharacterSetChange,
   preRunText,
   onPreRunTextChange,
   showCharacter,
   onShowCharacterChange,
+  transcriptionMode,
+  onTranscriptionModeChange,
   onPlay,
   isPlaying,
   isReady,
+  buttonText,
 }) => {
   return (
     <div className="bg-gray-800 rounded-lg shadow-xl p-6 space-y-6">
+      {/* Sliders grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Slider
           label="Speed (WPM)"
@@ -52,12 +77,12 @@ const Controls: React.FC<ControlsProps> = ({
           unit="Hz"
         />
         <Slider
-            label="Volume"
-            min={0}
-            max={1}
-            step={0.05}
-            value={settings.volume}
-            onChange={(e) => onSettingsChange('volume', parseFloat(e.target.value))}
+          label="Volume"
+          min={0}
+          max={1}
+          step={0.05}
+          value={settings.volume}
+          onChange={(e) => onSettingsChange('volume', parseFloat(e.target.value))}
         />
         <Slider
           label="Character Spacing"
@@ -87,21 +112,53 @@ const Controls: React.FC<ControlsProps> = ({
           unit="chars"
         />
         <div className="md:col-span-3">
-            <Slider
-              label="Number of Characters"
-              min={20}
-              max={200}
-              step={5}
-              value={settings.totalChars}
-              onChange={(e) => onSettingsChange('totalChars', parseInt(e.target.value, 10))}
-              unit="chars"
-            />
+          <Slider
+            label="Number of Characters"
+            min={20}
+            max={200}
+            step={5}
+            value={settings.totalChars}
+            onChange={(e) => onSettingsChange('totalChars', parseInt(e.target.value, 10))}
+            unit="chars"
+          />
         </div>
       </div>
       
+      {/* Lessons */}
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-2">
+          Lesson
+        </label>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <select
+            value={selectedLesson?.id || ''}
+            onChange={(e) => onLessonChange(e.target.value)}
+            className="flex-1 bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+          >
+            <option value="">Custom Lesson</option>
+            {PREDEFINED_LESSONS.map(lesson => (
+              <option key={lesson.id} value={lesson.id}>
+                {lesson.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="text"
+            placeholder="Custom chars (e.g., ABCDE)"
+            value={customLesson}
+            onChange={(e) => onCustomLessonChange(e.target.value)}
+            className="flex-1 bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono"
+          />
+        </div>
+        {selectedLesson && (
+          <p className="text-xs text-gray-500 mt-1">Using: {selectedLesson.chars}</p>
+        )}
+      </div>
+
+      {/* Character Set (kept for manual override) */}
       <div>
         <label htmlFor="characterSet" className="block text-sm font-medium text-gray-300 mb-2">
-          Character Set (add characters to be randomly chosen)
+          Character Set (manual override)
         </label>
         <input
           type="text"
@@ -127,30 +184,47 @@ const Controls: React.FC<ControlsProps> = ({
         />
       </div>
 
+      {/* Checkboxes */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center">
-            <input
-              id="show-character-checkbox"
-              type="checkbox"
-              checked={showCharacter}
-              onChange={(e) => onShowCharacterChange(e.target.checked)}
-              className="w-4 h-4 text-teal-500 bg-gray-700 border-gray-600 rounded focus:ring-teal-600"
-            />
-            <label htmlFor="show-character-checkbox" className="ml-2 text-sm font-medium text-gray-300">
-              Show current character
-            </label>
+          <input
+            id="show-character-checkbox"
+            type="checkbox"
+            checked={showCharacter}
+            onChange={(e) => onShowCharacterChange(e.target.checked)}
+            className="w-4 h-4 text-teal-500 bg-gray-700 border-gray-600 rounded focus:ring-teal-600"
+          />
+          <label htmlFor="show-character-checkbox" className="ml-2 text-sm font-medium text-gray-300">
+            Show current character
+          </label>
         </div>
-        
+        <div className="flex items-center">
+          <input
+            id="transcription-checkbox"
+            type="checkbox"
+            checked={transcriptionMode}
+            onChange={(e) => onTranscriptionModeChange(e.target.checked)}
+            className="w-4 h-4 text-teal-500 bg-gray-700 border-gray-600 rounded focus:ring-teal-600"
+          />
+          <label htmlFor="transcription-checkbox" className="ml-2 text-sm font-medium text-gray-300">
+            Transcription Mode
+          </label>
+        </div>
+      </div>
+      
+      {/* Play Button */}
+      <div className="flex justify-center">
         <button
           onClick={onPlay}
+          disabled={!isReady && !isPlaying}
           className={`px-6 py-2 flex items-center gap-2 font-bold rounded-md transition-all duration-200 text-lg ${
             isPlaying 
-            ? 'bg-red-600 hover:bg-red-700 text-white' 
-            : 'bg-teal-500 hover:bg-teal-600 text-gray-900'
-          }`}
+              ? 'bg-red-600 hover:bg-red-700 text-white' 
+              : 'bg-teal-500 hover:bg-teal-600 text-gray-900'
+          } ${(!isReady && !isPlaying) ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           {isPlaying ? <StopIcon /> : <PlayIcon />}
-          <span>{isPlaying ? 'Stop' : isReady ? 'Start' : 'Init Audio'}</span>
+          <span>{buttonText}</span>
         </button>
       </div>
     </div>
