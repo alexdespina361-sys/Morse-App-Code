@@ -1,5 +1,5 @@
 // Updated ./src/components/CharacterDisplay.tsx
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Score, HistoryEntry } from '../types';
 
 interface CharacterDisplayProps {
@@ -29,11 +29,16 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
   characterSet,
   isPlaying,
 }) => {
+  const [historyExpanded, setHistoryExpanded] = useState<boolean>(false);
+
   // Format text with groups for display
   const formattedText = useMemo(() => {
     if (!text || text === 'SET CHARS') return text;
     let effectiveText = text;
-    if (!transcriptionMode && isPlaying && currentIndex !== null) {
+    if (showCharacter && isPlaying && currentIndex !== null) {
+      effectiveText = text.slice(0, currentIndex + 1);
+    }
+    if (transcriptionMode && isPlaying && currentIndex !== null) {
       effectiveText = text.slice(0, currentIndex + 1);
     }
     const trimmedText = effectiveText.trimEnd();
@@ -45,7 +50,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
       return group.padEnd(groupSize, '_');
     });
     return formattedGroups.join(' ').replace(/\n/g, '\n');
-  }, [text, groupSize, transcriptionMode, isPlaying, currentIndex]);
+  }, [text, groupSize, showCharacter, transcriptionMode, isPlaying, currentIndex]);
 
   // For transcription: Auto-format input with spaces every groupSize
   const formattedUserInput = useMemo(() => {
@@ -80,7 +85,10 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
   const displayedText = useMemo(() => {
     if (!showCharacter || currentIndex === null || transcriptionMode) return formattedText;
     const chars = formattedText.split('');
-    chars[currentIndex] = `<span class="bg-teal-500 text-gray-900 px-1 rounded">${chars[currentIndex] || ''}</span>`;
+    const highlightIndex = chars.lastIndexOf(chars[currentIndex] || '', currentIndex);
+    if (highlightIndex >= 0) {
+      chars[highlightIndex] = `<span class="bg-teal-500 text-gray-900 px-1 rounded">${chars[highlightIndex]}</span>`;
+    }
     return chars.join('');
   }, [formattedText, showCharacter, currentIndex, transcriptionMode]);
 
@@ -90,6 +98,18 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
       a.localeCompare(b, undefined, { numeric: true })
     );
   }, [characterSet]);
+
+  // Format history entry text
+  const formatHistoryText = (playedText: string) => {
+    const groups = playedText.split(' ');
+    const formattedGroups = groups.map((group, idx) => {
+      if (idx === groups.length - 1 && group.length < groupSize) {
+        return group;
+      }
+      return group.padEnd(groupSize, '_');
+    });
+    return formattedGroups.join(' ').replace(/\n/g, '\n');
+  };
 
   if (!showCharacter && !transcriptionMode) {
     return (
@@ -152,16 +172,34 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
 
       {history.length > 0 && (
         <div className="mt-6 space-y-2">
-          <h2 className="text-xl font-bold text-teal-400">History (Last {history.length})</h2>
-          {history.map((entry, index) => (
-            <div key={index} className="bg-gray-700 p-2 rounded-md text-sm">
-              <p className="font-bold">{new Date(entry.timestamp).toLocaleString()}</p>
-              <pre className="whitespace-pre-wrap">{entry.playedText}</pre>
-              {entry.score && (
-                <p>Score: {entry.score.score}/10 ({entry.score.correct}/{entry.score.total})</p>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-teal-400">History (Last {history.length})</h2>
+            <button
+              onClick={() => setHistoryExpanded(!historyExpanded)}
+              className="text-teal-400 hover:text-teal-300"
+            >
+              {historyExpanded ? '▼ Minimize' : '▶ Expand'}
+            </button>
+          </div>
+          {historyExpanded ? (
+            history.map((entry, index) => (
+              <div key={index} className="bg-gray-700 p-2 rounded-md text-sm">
+                <p className="font-bold">{new Date(entry.timestamp).toLocaleString()}</p>
+                <pre className="whitespace-pre-wrap font-mono">{formatHistoryText(entry.playedText)}</pre>
+                {entry.score && (
+                  <p>Score: {entry.score.score}/10 ({entry.score.correct}/{entry.score.total})</p>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="bg-gray-700 p-2 rounded-md text-sm">
+              <p className="font-bold">{new Date(history[history.length - 1].timestamp).toLocaleString()}</p>
+              <pre className="whitespace-pre-wrap font-mono">{formatHistoryText(history[history.length - 1].playedText)}</pre>
+              {history[history.length - 1].score && (
+                <p>Score: {history[history.length - 1].score.score}/10 ({history[history.length - 1].score.correct}/{history[history.length - 1].score.total})</p>
               )}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
