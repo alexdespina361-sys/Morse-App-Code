@@ -34,14 +34,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
   // Format text with groups for display
   const formattedText = useMemo(() => {
     if (!text || text === 'SET CHARS') return text;
-    let effectiveText = text;
-    if (showCharacter && isPlaying && currentIndex !== null) {
-      effectiveText = text.slice(0, currentIndex + 1);
-    }
-    if (transcriptionMode && isPlaying && currentIndex !== null) {
-      effectiveText = text.slice(0, currentIndex + 1);
-    }
-    const trimmedText = effectiveText.trimEnd();
+    const trimmedText = text.trimEnd();
     const groups = trimmedText.split(' ');
     const formattedGroups = groups.map((group, idx) => {
       if (idx === groups.length - 1 && group.length < groupSize) {
@@ -50,7 +43,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
       return group.padEnd(groupSize, '_');
     });
     return formattedGroups.join(' ').replace(/\n/g, '\n');
-  }, [text, groupSize, showCharacter, transcriptionMode, isPlaying, currentIndex]);
+  }, [text, groupSize]);
 
   // For transcription: Auto-format input with spaces every groupSize
   const formattedUserInput = useMemo(() => {
@@ -85,8 +78,8 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
   const displayedText = useMemo(() => {
     if (!showCharacter || currentIndex === null || transcriptionMode) return formattedText;
     const chars = formattedText.split('');
-    const highlightIndex = chars.lastIndexOf(chars[currentIndex] || '', currentIndex);
-    if (highlightIndex >= 0) {
+    const highlightIndex = currentIndex;
+    if (highlightIndex >= 0 && highlightIndex < chars.length) {
       chars[highlightIndex] = `<span class="bg-teal-500 text-gray-900 px-1 rounded">${chars[highlightIndex]}</span>`;
     }
     return chars.join('');
@@ -101,7 +94,8 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
 
   // Format history entry text
   const formatHistoryText = (playedText: string) => {
-    const groups = playedText.split(' ');
+    const trimmed = playedText.trimEnd();
+    const groups = trimmed.split(' ');
     const formattedGroups = groups.map((group, idx) => {
       if (idx === groups.length - 1 && group.length < groupSize) {
         return group;
