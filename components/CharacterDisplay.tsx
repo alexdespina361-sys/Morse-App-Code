@@ -1,4 +1,4 @@
-// Updated ./src/components/CharacterDisplay.tsx
+// ./components/CharacterDisplay.tsx
 import React, { useMemo, useState } from 'react';
 import { Score, HistoryEntry } from '../types';
 
@@ -29,7 +29,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
   characterSet,
   isPlaying,
 }) => {
-  const [historyExpanded, setHistoryExpanded] = useState<boolean>(false);
+  const [historyExpanded, setHistoryExpanded] = useState(true);  // Changed to true for default expanded view
 
   // Format text with groups for display
   const formattedText = useMemo(() => {
@@ -59,7 +59,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
   // Highlight for score
   const highlightedText = useMemo(() => {
     if (!score || !transcriptionMode || !text) return formattedText;
-    const playedGroups = text.replace(/\n/g, ' ').split(' ').filter(g => g);
+    const playedGroups = text.replace(/\n/g, ' ').split(' ').filter(g => g.length > 0);
     const userGroups = userTranscription.toUpperCase().replace(/[^A-Z0-9]/g, '').match(new RegExp(`.{1,${groupSize}}`, 'g')) || [];
     let highlighted = '';
     playedGroups.forEach((group, gIdx) => {
@@ -67,8 +67,8 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
       const userGroup = userGroups[gIdx] || '';
       group.split('').forEach((char, cIdx) => {
         const isCorrect = cIdx < userGroup.length && char === userGroup[cIdx];
-        const color = isCorrect ? 'text-green-400 border-green-500' : 'text-red-400 border-red-500';
-        highlighted += `<span class="border px-0.5 ${color}">${char}</span>`;
+        const color = isCorrect ? 'text-green-400 font-bold' : 'text-red-400 font-bold';
+        highlighted += `<span class="${color}">${char}</span>`;  // Removed leading space
       });
     });
     return highlighted;
@@ -80,16 +80,14 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
     const chars = formattedText.split('');
     const highlightIndex = currentIndex;
     if (highlightIndex >= 0 && highlightIndex < chars.length) {
-      chars[highlightIndex] = `<span class="bg-teal-500 text-gray-900 px-1 rounded">${chars[highlightIndex]}</span>`;
+      chars[highlightIndex] = `<span class="bg-teal-600 text-white px-1 rounded">${chars[highlightIndex]}</span>`;  // Removed leading space
     }
     return chars.join('');
   }, [formattedText, showCharacter, currentIndex, transcriptionMode]);
 
   // Unique keys from characterSet
   const keys = useMemo(() => {
-    return Array.from(new Set(characterSet.split(''))).sort((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true })
-    );
+    return Array.from(new Set(characterSet.split(''))).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [characterSet]);
 
   // Format history entry text
@@ -107,91 +105,78 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
 
   if (!showCharacter && !transcriptionMode) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6 text-center h-32 flex items-center justify-center">
-        <p className="text-gray-500 italic">Character display is hidden</p>
+      <div className="bg-gray-800 rounded-lg shadow-xl p-6 text-center text-gray-400">
+        Character display is hidden
       </div>
     );
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg p-6 space-y-4">
-      {transcriptionMode ? (
-        score ? (
-          <div className="space-y-2">
-            <p className="text-lg font-bold text-teal-400">
-              Score: {score.score}/10 ({score.correct}/{score.total})
-            </p>
-            <div 
-              dangerouslySetInnerHTML={{ __html: highlightedText }} 
-              className="font-mono whitespace-pre-wrap text-gray-200"
-            />
-          </div>
-        ) : (
-          <>
-            <div className="w-full h-32 bg-gray-700 border border-gray-600 rounded-md p-2 text-gray-100 font-mono overflow-auto whitespace-pre-wrap">
-              {formattedUserInput}
-            </div>
-            <div className="flex flex-wrap justify-center gap-2 mt-4">
-              {keys.map((k) => (
-                <button
-                  key={k}
-                  onClick={() => onTranscriptionChange(userTranscription + k)}
-                  className="bg-teal-500 text-gray-900 px-4 py-2 rounded-md text-xl font-bold"
-                >
-                  {k}
-                </button>
-              ))}
-            </div>
-            <div className="flex justify-center gap-4 mt-4">
-              <button
-                onClick={() => onTranscriptionChange(userTranscription.slice(0, -1))}
-                className="bg-yellow-500 text-gray-900 px-4 py-2 rounded-md"
-              >
-                Backspace
-              </button>
-              <button
-                onClick={() => onTranscriptionChange('')}
-                className="bg-red-500 text-white px-4 py-2 rounded-md"
-              >
-                Clear
-              </button>
-            </div>
-          </>
-        )
-      ) : (
-        <div className="font-mono whitespace-pre-wrap text-gray-200 text-lg">
-          <div dangerouslySetInnerHTML={{ __html: displayedText }} />
-        </div>
-      )}
+    <div className="space-y-6">
+      <div className="bg-gray-800 rounded-lg shadow-xl p-6">
+        <h2 className="text-xl font-semibold text-teal-400 mb-4">
+          {transcriptionMode ? 'Transcription' : 'Displayed Text'}
+        </h2>
+        <pre className="whitespace-pre-wrap break-words font-mono text-lg text-gray-200">
+          {transcriptionMode ? (
+            score ? (
+              <>
+                <div className="mb-4">
+                  Score: {score.score}/10 ({score.correct}/{score.total})
+                </div>
+                <span dangerouslySetInnerHTML={{ __html: highlightedText }} />  {/* Added rendering of highlighted comparison */}
+              </>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  value={userTranscription}
+                  onChange={(e) => onTranscriptionChange(e.target.value)}
+                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono mb-4"
+                  placeholder="Type what you hear..."
+                  disabled={isPlaying}
+                />
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {keys.map((k) => (
+                    <button
+                      key={k}
+                      onClick={() => onTranscriptionChange(userTranscription + k)}
+                      className="px-3 py-1 bg-teal-600 hover:bg-teal-700 rounded-md text-white font-mono"
+                      disabled={isPlaying}
+                    >
+                      {k}
+                    </button>
+                  ))}
+                </div>
+                {formattedUserInput}
+              </>
+            )
+          ) : (
+            <span dangerouslySetInnerHTML={{ __html: displayedText }} />
+          )}
+        </pre>
+      </div>
 
       {history.length > 0 && (
-        <div className="mt-6 space-y-2">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-teal-400">History (Last {history.length})</h2>
-            <button
-              onClick={() => setHistoryExpanded(!historyExpanded)}
-              className="text-teal-400 hover:text-teal-300"
-            >
-              {historyExpanded ? '▼ Minimize' : '▶ Expand'}
-            </button>
-          </div>
-          {historyExpanded ? (
-            history.map((entry, index) => (
-              <div key={index} className="bg-gray-700 p-2 rounded-md text-sm">
-                <p className="font-bold">{new Date(entry.timestamp).toLocaleString()}</p>
-                <pre className="whitespace-pre-wrap font-mono">{formatHistoryText(entry.playedText)}</pre>
-                {entry.score && (
-                  <p>Score: {entry.score.score}/10 ({entry.score.correct}/{entry.score.total})</p>
-                )}
-              </div>
-            ))
-          ) : (
-            <div className="bg-gray-700 p-2 rounded-md text-sm">
-              <p className="font-bold">{new Date(history[history.length - 1].timestamp).toLocaleString()}</p>
-              <pre className="whitespace-pre-wrap font-mono">{formatHistoryText(history[history.length - 1].playedText)}</pre>
-              {history[history.length - 1].score && (
-                <p>Score: {history[history.length - 1].score.score}/10 ({history[history.length - 1].score.correct}/{history[history.length - 1].score.total})</p>
-              )}
+        <div className="bg-gray-800 rounded-lg shadow-xl p-6">
+          <h2 className="text-xl font-semibold text-teal-400 mb-4 cursor-pointer" onClick={() => setHistoryExpanded(!historyExpanded)}>
+            History ({history.length})
+          </h2>
+          {historyExpanded && (
+            <div className="space-y-4">
+              {history.map((entry, idx) => (
+                <div key={idx} className="border-t border-gray-700 pt-4">
+                  <p className="text-sm text-gray-400 mb-2">{new Date(entry.timestamp).toLocaleString()}</p>
+                  <pre className="whitespace-pre-wrap break-words font-mono text-sm text-gray-200">
+                    {formatHistoryText(entry.playedText)}
+                  </pre>
+                  {entry.score && (
+                    <p className="text-sm text-teal-400 mt-2">
+                      Score: {entry.score.score}/10 ({entry.score.correct}/{entry.score.total})
+                    </p>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </div>
