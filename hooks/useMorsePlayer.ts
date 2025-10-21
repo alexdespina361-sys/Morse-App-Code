@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-const MORSE_CODE: Record<string, string> = {
+const MORSE_CODE = {
   'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.',
   'G': '--.', 'H': '....', 'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..',
   'M': '--', 'N': '-.', 'O': '---', 'P': '.--.', 'Q': '--.-', 'R': '.-.',
@@ -10,33 +10,30 @@ const MORSE_CODE: Record<string, string> = {
   '8': '---..', '9': '----.', ' ': ' '
 };
 
-export interface MorseSettings {
-  wpm: number;           // character speed
-  frequency: number;
-  volume: number;
-  charSpaceDots: number;
-  wordSpaceDots: number;
-  groupSize: number;
-  totalChars: number;
-}
-
-export const useMorsePlayer = (initialSettings: Partial<MorseSettings>) => {
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const oscillatorRef = useRef<OscillatorNode | null>(null);
-  const gainNodeRef = useRef<GainNode | null>(null);
-  const timeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const [settings, setSettings] = useState<MorseSettings>({
-    wpm: 18,
-    frequency: 750,
-    volume: 0.7,
-    charSpaceDots: 3,
-    wordSpaceDots: 7,
-    groupSize: 4,
-    totalChars: 120,
+export const useMorsePlayer = (initialSettings) => {
+  const audioContextRef = useRef<any>(null);
+  const oscillatorRef = useRef<any>(null);
+  const gainNodeRef = useRef<any>(null);
+  const timeoutsRef = useRef<any[]>([]);
+  const [settings, setSettings] = useState({
+    charWpm: initialSettings.wpm,    // character speed
+    frequency: initialSettings.frequency || 600,
+    volume: initialSettings.volume || 0.5,
+    charSpaceDots: initialSettings.charSpaceDots || 3,
+    wordSpaceDots: initialSettings.wordSpaceDots || 7,
+    groupSize: initialSettings.groupSize || 4,
+    totalChars: initialSettings.totalChars || 120,
     ...initialSettings
   });
   const [isInitialized, setIsInitialized] = useState(false);
-  const [effectiveWpm, setEffectiveWpm] = useState<number>(settings.wpm);
+
+  // Calculate effective WPM based on Farnsworth spacing
+  const effectiveWpm = (() => {
+    const charDot = 1200 / settings.charWpm; // ms per dit
+    const totalCharTime = charDot * 1 + (settings.charSpaceDots - 1) * charDot; // 1 dit + extra char spacing
+    const eff = 1200 / (totalCharTime / settings.charSpaceDots); // effective WPM formula
+    return Math.min(eff, settings.charWpm); // can't exceed char speed
+  })();
 
   useEffect(() => {
     return () => {
@@ -50,8 +47,8 @@ export const useMorsePlayer = (initialSettings: Partial<MorseSettings>) => {
 
   const initializeAudio = () => {
     if (isInitialized) return;
-    const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
-    audioContextRef.current = new AudioContextClass();
+    const AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext;
+    audioContextRef.current = new AudioContext();
 
     oscillatorRef.current = audioContextRef.current.createOscillator();
     gainNodeRef.current = audioContextRef.current.createGain();
@@ -61,7 +58,6 @@ export const useMorsePlayer = (initialSettings: Partial<MorseSettings>) => {
     gainNodeRef.current.gain.value = 0;
     oscillatorRef.current.connect(gainNodeRef.current);
 
-    // Add compressor to prevent clipping
     const compressor = audioContextRef.current.createDynamicsCompressor();
     compressor.threshold.value = -50;
     compressor.knee.value = 40;
@@ -75,7 +71,7 @@ export const useMorsePlayer = (initialSettings: Partial<MorseSettings>) => {
     setIsInitialized(true);
   };
 
-  const updateSettings = (newSettings: Partial<MorseSettings>) => {
+  const updateSettings = (newSettings) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
     if (oscillatorRef.current && newSettings.frequency) {
       oscillatorRef.current.frequency.value = newSettings.frequency;
@@ -92,60 +88,48 @@ export const useMorsePlayer = (initialSettings: Partial<MorseSettings>) => {
     gain.linearRampToValueAtTime(0, now + durationSec + 0.02);
   };
 
-  const play = (
-    text: string,
-    onProgress: (i: number, isGroupEnd?: boolean) => void,
-    onFinish: () => void
-  ) => {
+  const play = (text: string, onProgress: (i: number, isGroupEnd?: boolean) => void, onFinish: () => void) => {
     initializeAudio();
     stop();
 
-    const ditDurationMs = 1200 / settings.wpm; // standard dit duration for character speed
-    const charSpace = ditDurationMs * settings.charSpaceDots;
-    const wordSpace = ditDurationMs * settings.wordSpaceDots;
+    const ditChar = 1200 / settings.charWpm;
+    const charSpace = 1200 / effectiveWpm * settings.charSpaceDots;
+    const wordSpace = 1200 / effectiveWpm * settings.wordSpaceDots;
 
     let delay = 0;
     let groupCount = 0;
-    let totalSignalTime = 0; // sum of all signal (dit/dah) and spacing durations
-    let totalChars = 0;      // total letters played (excluding spaces)
 
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
       if (char === ' ' || char === '\n') {
+        timeoutsRef.current.push(setTimeout(() => onProgress(i), delay));
         delay += wordSpace;
-        totalSignalTime += wordSpace;
         groupCount = 0;
         continue;
       }
 
       const code = MORSE_CODE[char.toUpperCase()];
-      if (!code) continue;
+      if (!code) {
+        timeoutsRef.current.push(setTimeout(() => onProgress(i), delay));
+        continue;
+      }
 
-      totalChars++;
       for (const symbol of code) {
-        const durMs = symbol === '.' ? ditDurationMs : ditDurationMs * 3;
+        const durMs = symbol === '.' ? ditChar : ditChar * 3;
         timeoutsRef.current.push(setTimeout(() => playTone(durMs / 1000), delay));
-        delay += durMs + ditDurationMs; // intra-character spacing at standard character dit
-        totalSignalTime += durMs + ditDurationMs;
+        delay += durMs + (charSpace - ditChar); // Farnsworth intra-character spacing
       }
 
       groupCount++;
       const nextIsChar = i + 1 < text.length && text[i + 1] !== ' ' && text[i + 1] !== '\n';
       if (groupCount === settings.groupSize && nextIsChar) {
-        delay += ditDurationMs; // extra group gap
-        totalSignalTime += ditDurationMs;
+        delay += charSpace;
+        timeoutsRef.current.push(setTimeout(() => onProgress(i, true), delay));
         groupCount = 0;
       } else {
-        delay += charSpace - ditDurationMs; // inter-character spacing
-        totalSignalTime += charSpace - ditDurationMs;
+        timeoutsRef.current.push(setTimeout(() => onProgress(i), delay));
       }
     }
-
-    // ARRL Effective WPM calculation based on PARIS standard (50 units per word)
-    // Effective WPM = (50 units / average ms per unit) * 60 sec / 1000ms
-    const avgUnitMs = totalSignalTime / (totalChars * 50); // approximate units per character
-    const arrlEffWpm = Math.round(1200 / avgUnitMs / 50 * 1e2) / 1e2; // rounded 2 decimals
-    setEffectiveWpm(arrlEffWpm);
 
     timeoutsRef.current.push(setTimeout(onFinish, delay));
   };
