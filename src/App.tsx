@@ -137,11 +137,23 @@ const App: React.FC = () => {
 
   useEffect(() => { displayedTextRef.current = displayedText; }, [displayedText]);
 
+  const handleStop = useCallback(() => {
+    stop();
+    setIsPlaying(false);
+    setCurrentCharIndex(null);
+    const playedText = displayedTextRef.current || '';
+    let computedScore = null;
+    if (transcriptionMode && playedText && userTranscription) {
+      computedScore = computeScore(playedText, userTranscription, settings.groupSize);
+      setScore(computedScore);
+    }
+    addToHistory(playedText, computedScore);
+    setStartTime(null);
+  }, [stop, transcriptionMode, userTranscription, computeScore, settings.groupSize, addToHistory]);
+
   const handlePlay = useCallback(() => {
     if (isPlaying) {
-      stop();
-      setIsPlaying(false);
-      setCurrentCharIndex(null);
+      handleStop();
       return;
     }
 
@@ -213,7 +225,7 @@ const App: React.FC = () => {
         setStartTime(null);
       }
     );
-  }, [isPlaying, isInitialized, initializeAudio, characterSet, settings, preRunText, transcriptionMode, userTranscription, play, stop, computeScore, addToHistory]);
+  }, [isPlaying, isInitialized, initializeAudio, characterSet, settings, preRunText, transcriptionMode, userTranscription, play, stop, computeScore, addToHistory, handleStop]);
 
   const handleTranscriptionChange = useCallback((value: string) => {
     setUserTranscription(value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
@@ -278,4 +290,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-    
