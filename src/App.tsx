@@ -21,10 +21,10 @@ const App: React.FC = () => {
     wpm: 18,
     frequency: 750,
     volume: 0.6,
-    charSpaceDots: 7,
-    wordSpaceDots: 5,
+    charSpaceDots: 18,
+    wordSpaceDots: 15,
     groupSize: 4,
-    totalChars: 200,
+    totalChars: 120,
   });
 
   const [characterSet, setCharacterSet] = useState<string>(PREDEFINED_LESSONS[0].chars);
