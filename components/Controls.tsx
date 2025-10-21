@@ -22,7 +22,7 @@ interface ControlsProps {
   onPlay: () => void;
   isPlaying: boolean;
   buttonText: string;
-  effectiveWpm: number; // effective WPM
+  effectiveWpm: number;
 }
 
 const PREDEFINED_LESSONS: Lesson[] = [
@@ -57,7 +57,7 @@ const Controls: React.FC<ControlsProps> = ({
 }) => {
   return (
     <div className="bg-gray-800 rounded-lg shadow-xl p-6 space-y-6">
-      {/* Sliders grid */}
+      {/* Sliders */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Slider
           label={`Speed (WPM) - Effective: ${effectiveWpm.toFixed(1)}`}
@@ -127,9 +127,7 @@ const Controls: React.FC<ControlsProps> = ({
 
       {/* Lessons */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
-          Lesson
-        </label>
+        <label className="block text-sm font-medium text-gray-300 mb-2">Lesson</label>
         <div className="flex flex-col sm:flex-row gap-2">
           <select
             value={selectedLesson?.id || ''}
@@ -138,9 +136,7 @@ const Controls: React.FC<ControlsProps> = ({
           >
             <option value="">Custom Lesson</option>
             {PREDEFINED_LESSONS.map(lesson => (
-              <option key={lesson.id} value={lesson.id}>
-                {lesson.name}
-              </option>
+              <option key={lesson.id} value={lesson.id}>{lesson.name}</option>
             ))}
           </select>
           <input
@@ -193,7 +189,10 @@ const Controls: React.FC<ControlsProps> = ({
             id="show-character-checkbox"
             type="checkbox"
             checked={showCharacter}
-            onChange={(e) => onShowCharacterChange(e.target.checked)}
+            onChange={(e) => {
+              onShowCharacterChange(e.target.checked);
+              if (e.target.checked) onTranscriptionModeChange(false);
+            }}
             className="w-4 h-4 text-teal-500 bg-gray-700 border-gray-600 rounded focus:ring-teal-600"
           />
           <label htmlFor="show-character-checkbox" className="ml-2 text-sm font-medium text-gray-300">
@@ -205,7 +204,10 @@ const Controls: React.FC<ControlsProps> = ({
             id="transcription-checkbox"
             type="checkbox"
             checked={transcriptionMode}
-            onChange={(e) => onTranscriptionModeChange(e.target.checked)}
+            onChange={(e) => {
+              onTranscriptionModeChange(e.target.checked);
+              if (e.target.checked) onShowCharacterChange(false);
+            }}
             className="w-4 h-4 text-teal-500 bg-gray-700 border-gray-600 rounded focus:ring-teal-600"
           />
           <label htmlFor="transcription-checkbox" className="ml-2 text-sm font-medium text-gray-300">
@@ -219,8 +221,8 @@ const Controls: React.FC<ControlsProps> = ({
         <button
           onClick={onPlay}
           className={`px-6 py-2 flex items-center gap-2 font-bold rounded-md transition-all duration-200 text-lg ${
-            isPlaying 
-              ? 'bg-red-600 hover:bg-red-700 text-white' 
+            isPlaying
+              ? 'bg-red-600 hover:bg-red-700 text-white'
               : 'bg-teal-500 hover:bg-teal-600 text-gray-900'
           }`}
         >
