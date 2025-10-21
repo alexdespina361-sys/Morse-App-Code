@@ -1,4 +1,3 @@
-// ./src/hooks/useMorsePlayer.ts
 import { useEffect, useRef, useState } from 'react';
 
 const MORSE_CODE: Record<string, string> = {
@@ -9,7 +8,7 @@ const MORSE_CODE: Record<string, string> = {
   'Y': '-.--', 'Z': '--..',
   '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-',
   '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.',
-  ' ': ' '
+  // Removed ' ': ' ' to properly skip spaces without errors
 };
 
 export const useMorsePlayer = (initialSettings: any) => {
@@ -39,9 +38,11 @@ export const useMorsePlayer = (initialSettings: any) => {
     if (!audioContextRef.current) {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       audioContextRef.current = new AudioContext();
+      audioContextRef.current.resume(); // Ensure context is running after user gesture
       oscillatorRef.current = audioContextRef.current.createOscillator();
+      oscillatorRef.current.type = 'sine'; // Clean tone
+      oscillatorRef.current.frequency.value = settings.frequency;
       gainNodeRef.current = audioContextRef.current.createGain();
-
       gainNodeRef.current.gain.value = 0;
       oscillatorRef.current.connect(gainNodeRef.current);
       gainNodeRef.current.connect(audioContextRef.current.destination);
@@ -49,11 +50,18 @@ export const useMorsePlayer = (initialSettings: any) => {
     }
   };
 
+  // Updatefrequency if changed after initialization
+  useEffect(() => {
+    if (oscillatorRef.current) {
+      oscillatorRef.current.frequency.value = settings.frequency;
+    }
+  }, [settings.frequency]);
+
   const playTone = (duration: number) => {
     if (!audioContextRef.current || !gainNodeRef.current) return;
     const now = audioContextRef.current.currentTime;
-    gainNodeRef.current!.gain.setValueAtTime(settings.volume, now);
-    gainNodeRef.current!.gain.setValueAtTime(0, now + duration);
+    gainNodeRef.current.gain.setValueAtTime(settings.volume, now);
+    gainNodeRef.current.gain.setValueAtTime(0, now + duration);
   };
 
   const play = (text: string, onProgress: any, onFinish: any) => {
@@ -70,7 +78,7 @@ export const useMorsePlayer = (initialSettings: any) => {
       const char = text[i];
       const code = MORSE_CODE[char];
 
-      if (!code) continue;
+      if (!code) continue; // Skip spaces, newlines, etc.
 
       for (const symbol of code) {
         const toneTime = symbol === '.' ? dotDuration : dotDuration * 3;
@@ -79,8 +87,7 @@ export const useMorsePlayer = (initialSettings: any) => {
       }
 
       delay += dotDuration * (settings.charSpaceDots - 1);
-      onProgress(i);
-
+      onProgress(i, groupCount + 1 === settings.groupSize); // Pass isGroupEnd for adding spaces in display
       groupCount++;
       if (groupCount === settings.groupSize) {
         delay += dotDuration * settings.wordSpaceDots;
@@ -107,7 +114,7 @@ export const useMorsePlayer = (initialSettings: any) => {
     play,
     stop,
     updateSettings,
-    settings,
-    setSettings
+    initializeAudio,
+    isInitialized: !!audioContextRef.current,
   };
 };
