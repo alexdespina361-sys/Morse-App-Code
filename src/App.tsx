@@ -4,6 +4,7 @@ import { MorseSettings, Lesson, Score, HistoryEntry } from '../types';
 import Controls from '../components/Controls';
 import CharacterDisplay from '../components/CharacterDisplay';
 
+// Predefined lessons
 const PREDEFINED_LESSONS: Lesson[] = [
   { id: 'ARZSJYEQTPIB', name: 'De bază', chars: 'ARZSJYEQTPIB' },
   { id: 'COLH', name: 'COLH', chars: 'COLH' },
@@ -18,11 +19,11 @@ const App: React.FC = () => {
   const [settings, setSettings] = useState<MorseSettings>({
     wpm: 18,
     frequency: 750,
-    volume: 0.7,
+    volume: 0.6,
     charSpaceDots: 7,
     wordSpaceDots: 5,
     groupSize: 4,
-    totalChars: 120,
+    totalChars: 200,
   });
 
   const [characterSet, setCharacterSet] = useState<string>(PREDEFINED_LESSONS[0].chars);
@@ -47,7 +48,7 @@ const App: React.FC = () => {
 
   const { play, stop, updateSettings, initializeAudio, isInitialized, effectiveWpm } = useMorsePlayer(settings);
 
-  // localStorage persistence (load)
+  // Save/load to localStorage
   useEffect(() => {
     const saved = localStorage.getItem('morseTrainerState');
     if (saved) {
@@ -62,9 +63,6 @@ const App: React.FC = () => {
         if (parsed.selectedLessonId) {
           const l = PREDEFINED_LESSONS.find(ll => ll.id === parsed.selectedLessonId);
           if (l) setSelectedLesson(l);
-        } else if (parsed.characterSet) {
-          const savedLesson = PREDEFINED_LESSONS.find(l => l.chars === parsed.characterSet);
-          if (savedLesson) setSelectedLesson(savedLesson);
         }
       } catch (e) {
         console.error('Failed to load saved state', e);
@@ -72,7 +70,6 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // localStorage persistence (save)
   useEffect(() => {
     localStorage.setItem(
       'morseTrainerState',
@@ -88,12 +85,8 @@ const App: React.FC = () => {
     );
   }, [settings, characterSet, preRunText, showCharacter, transcriptionMode, history, selectedLesson]);
 
-  // Lesson handling
   const handleLessonChange = useCallback((lessonId: string) => {
-    if (lessonId === '') {
-      setSelectedLesson(null);
-      return;
-    }
+    if (lessonId === '') { setSelectedLesson(null); return; }
     const lesson = PREDEFINED_LESSONS.find(l => l.id === lessonId);
     if (!lesson) return;
     setSelectedLesson(lesson);
@@ -115,7 +108,6 @@ const App: React.FC = () => {
     updateSettings({ [key]: value } as any);
   }, [settings, updateSettings]);
 
-  // Compute score from groups
   const computeScore = useCallback((playedText: string, userText: string, groupSize: number): Score => {
     const playedGroups = playedText.replace(/\n/g, ' ').split(' ').filter(g => g.length > 0);
     const userInput = userText.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -129,9 +121,7 @@ const App: React.FC = () => {
       const userGroup = userGroups[idx] || '';
       total += group.length;
       for (let j = 0; j < group.length; j++) {
-        if (j < userGroup.length && group[j] === userGroup[j]) {
-          correct++;
-        }
+        if (j < userGroup.length && group[j] === userGroup[j]) correct++;
       }
     });
     const scoreValue = total > 0 ? Math.round((correct / total) * 10) : 0;
@@ -146,7 +136,97 @@ const App: React.FC = () => {
 
   useEffect(() => { displayedTextRef.current = displayedText; }, [displayedText]);
 
-  // -- omitted play logic for brevity, use your existing handlePlay --
+  const handlePlay = useCallback(() => {
+    if (isPlaying) {
+      stop();
+      setIsPlaying(false);
+      setCurrentCharIndex(null);
+      return;
+    }
+
+    if (!isInitialized) initializeAudio();
+    setGeneratedText('');
+    setDisplayedText('');
+    displayedTextRef.current = '';
+    setUserTranscription('');
+    setScore(null);
+    setCurrentCharIndex(null);
+    setStartTime(new Date().toISOString());
+
+    if (characterSet.length === 0) {
+      setGeneratedText('SET CHARS');
+      setDisplayedText('SET CHARS');
+      return;
+    }
+
+    let text = '';
+    for (let i = 0; i < settings.totalChars; i++) {
+      text += characterSet[Math.floor(Math.random() * characterSet.length)];
+      if ((i + 1) % settings.groupSize === 0 && i + 1 < settings.totalChars) {
+        text += (Math.floor(i / settings.groupSize) % 10 === 9 ? '\n' : ' ');
+      }
+    }
+    setGeneratedText(text);
+
+    const upperCasePreRun = preRunText.toUpperCase().trim();
+    const textToPlay = upperCasePreRun ? `${upperCasePreRun} ${text}` : text;
+    const preRunLength = upperCasePreRun ? upperCasePreRun.length + 1 : 0;
+
+    currentPlayTextRef.current = textToPlay;
+    preRunLenRef.current = preRunLength;
+
+    setIsPlaying(true);
+
+    play(
+      textToPlay,
+      (index: number, isGroupEnd = false) => {
+        const fullText = currentPlayTextRef.current;
+        if (!fullText) return;
+
+        if (index < preRunLenRef.current) {
+          const charIndex = index - preRunLenRef.current;
+          setCurrentCharIndex(charIndex >= 0 ? charIndex : null);
+          return;
+        }
+
+        const charIndex = index - preRunLenRef.current;
+        setDisplayedText(prev => {
+          let next = prev + fullText[index];
+          if (isGroupEnd && !next.endsWith(' ')) next += ' ';
+          displayedTextRef.current = next;
+          return next;
+        });
+
+        setCurrentCharIndex(charIndex);
+      },
+      () => {
+        const playedText = displayedTextRef.current || '';
+        let computedScore = null;
+        if (transcriptionMode && playedText && userTranscription) {
+          computedScore = computeScore(playedText, userTranscription, settings.groupSize);
+          setScore(computedScore);
+        }
+        addToHistory(playedText, computedScore);
+        setIsPlaying(false);
+        setCurrentCharIndex(null);
+        setStartTime(null);
+      }
+    );
+  }, [isPlaying, isInitialized, initializeAudio, characterSet, settings, preRunText, transcriptionMode, userTranscription, play, stop, computeScore, addToHistory]);
+
+  const handleTranscriptionChange = useCallback((value: string) => {
+    setUserTranscription(value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  }, []);
+
+  const handleShowCharacterChange = useCallback((value: boolean) => {
+    setShowCharacter(value);
+    if (value) setTranscriptionMode(false);
+  }, []);
+
+  const handleTranscriptionModeChange = useCallback((value: boolean) => {
+    setTranscriptionMode(value);
+    if (value) setShowCharacter(false);
+  }, []);
 
   const buttonText = isPlaying ? 'Stop' : 'Start';
 
@@ -155,14 +235,10 @@ const App: React.FC = () => {
       <div className="w-full max-w-4xl mx-auto space-y-6">
         <header className="text-center">
           <h1 className="text-4xl font-bold text-teal-400">Morse Code Trainer</h1>
-        </header>
-
-        {/* Show effective WPM */}
-        <div className="text-center text-teal-300 mt-2">
-          <p>
+          <p className="mt-2 text-teal-300">
             Character Speed: {settings.wpm} WPM | Effective Speed: {effectiveWpm.toFixed(1)} WPM
           </p>
-        </div>
+        </header>
 
         <main className="space-y-8">
           <Controls
@@ -177,10 +253,10 @@ const App: React.FC = () => {
             preRunText={preRunText}
             onPreRunTextChange={setPreRunText}
             showCharacter={showCharacter}
-            onShowCharacterChange={(val) => { setShowCharacter(val); if (val) setTranscriptionMode(false); }}
+            onShowCharacterChange={handleShowCharacterChange}
             transcriptionMode={transcriptionMode}
-            onTranscriptionModeChange={(val) => { setTranscriptionMode(val); if (val) setShowCharacter(false); }}
-            onPlay={() => { /* your handlePlay */ }}
+            onTranscriptionModeChange={handleTranscriptionModeChange}
+            onPlay={handlePlay}
             isPlaying={isPlaying}
             buttonText={buttonText}
           />
@@ -191,7 +267,7 @@ const App: React.FC = () => {
             history={history}
             transcriptionMode={transcriptionMode}
             userTranscription={userTranscription}
-            onTranscriptionChange={setUserTranscription}
+            onTranscriptionChange={handleTranscriptionChange}
             score={score}
             groupSize={settings.groupSize}
             characterSet={characterSet}
