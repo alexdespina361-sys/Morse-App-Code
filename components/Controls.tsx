@@ -1,4 +1,4 @@
-// Updated ./src/components/Controls.tsx
+// ./src/components/Controls.tsx
 import React from 'react';
 import { MorseSettings, Lesson } from '../types';
 import Slider from './Slider';
@@ -22,6 +22,7 @@ interface ControlsProps {
   onPlay: () => void;
   isPlaying: boolean;
   buttonText: string;
+  effectiveWpm: number; // effective WPM
 }
 
 const PREDEFINED_LESSONS: Lesson[] = [
@@ -30,9 +31,9 @@ const PREDEFINED_LESSONS: Lesson[] = [
   { id: 'ARZSJYEQTPIBCOLH', name: 'ARZSJYEQTPIBCOLH', chars: 'ARZSJYEQTPIBCOLH' },
   { id: 'DNFW', name: 'DNFW', chars: 'DNFW' },
   { id: 'ARZSJYEQTPIBCOLHDNFW', name: 'ARZSJYEQTPIBCOLHDNFW', chars: 'ARZSJYEQTPIBCOLHDNFW' },
-  { id: 'full', name: 'Toate literele', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'},
-  { id: 'cifre', name: 'Cifre', chars: '0123456789'}]
-
+  { id: 'full', name: 'Toate literele', chars: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' },
+  { id: 'cifre', name: 'Cifre', chars: '0123456789' }
+];
 
 const Controls: React.FC<ControlsProps> = ({
   settings,
@@ -52,13 +53,14 @@ const Controls: React.FC<ControlsProps> = ({
   onPlay,
   isPlaying,
   buttonText,
+  effectiveWpm,
 }) => {
   return (
     <div className="bg-gray-800 rounded-lg shadow-xl p-6 space-y-6">
       {/* Sliders grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Slider
-          label="Speed (WPM)"
+          label={`Speed (WPM) - Effective: ${effectiveWpm.toFixed(1)}`}
           min={5}
           max={40}
           step={1}
@@ -122,7 +124,7 @@ const Controls: React.FC<ControlsProps> = ({
           />
         </div>
       </div>
-      
+
       {/* Lessons */}
       <div>
         <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -154,7 +156,7 @@ const Controls: React.FC<ControlsProps> = ({
         )}
       </div>
 
-      {/* Character Set (kept for manual override) */}
+      {/* Character Set */}
       <div>
         <label htmlFor="characterSet" className="block text-sm font-medium text-gray-300 mb-2">
           Character Set (manual override)
@@ -169,6 +171,7 @@ const Controls: React.FC<ControlsProps> = ({
         />
       </div>
 
+      {/* Pre-run text */}
       <div>
         <label htmlFor="preRunText" className="block text-sm font-medium text-gray-300 mb-2">
           Pre-start Text (played but not shown)
@@ -210,7 +213,7 @@ const Controls: React.FC<ControlsProps> = ({
           </label>
         </div>
       </div>
-      
+
       {/* Play Button */}
       <div className="flex justify-center">
         <button
