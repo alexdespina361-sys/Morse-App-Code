@@ -17,7 +17,6 @@ const PREDEFINED_LESSONS: Lesson[] = [
 ];
 
 const App: React.FC = () => {
-  // Core state
   const [settings, setSettings] = useState<MorseSettings>({
     wpm: 18,
     frequency: 750,
@@ -27,6 +26,7 @@ const App: React.FC = () => {
     groupSize: 4,
     totalChars: 200,
   });
+
   const [characterSet, setCharacterSet] = useState<string>(PREDEFINED_LESSONS[0].chars);
   const [generatedText, setGeneratedText] = useState<string>('');
   const [displayedText, setDisplayedText] = useState<string>('');
@@ -47,20 +47,9 @@ const App: React.FC = () => {
   const currentPlayTextRef = useRef<string>('');
   const preRunLenRef = useRef<number>(0);
 
-  // Use MorsePlayer hook
-  const morsePlayer = useMorsePlayer(settings);
-  const { play, stop, initializeAudio, isInitialized } = morsePlayer;
+  const { play, stop, updateSettings, initializeAudio, isInitialized } = useMorsePlayer(settings);
 
-  // Calculate effective WPM based on spacing
-  const effectiveWpm = React.useMemo(() => {
-    // ARRL formula approximation:
-    // effWPM = baseWPM * 50 / (50 + charSpaceDots + wordSpaceDots)
-    const wpm = settings.wpm;
-    const eff = wpm * 50 / (50 + settings.charSpaceDots + settings.wordSpaceDots);
-    return Math.max(1, eff); // prevent 0 or negative
-  }, [settings.wpm, settings.charSpaceDots, settings.wordSpaceDots]);
-
-  // Load/save localStorage
+  // Save/load to localStorage
   useEffect(() => {
     const saved = localStorage.getItem('morseTrainerState');
     if (saved) {
@@ -97,7 +86,6 @@ const App: React.FC = () => {
     );
   }, [settings, characterSet, preRunText, showCharacter, transcriptionMode, history, selectedLesson]);
 
-  // Lesson handling
   const handleLessonChange = useCallback((lessonId: string) => {
     if (lessonId === '') { setSelectedLesson(null); return; }
     const lesson = PREDEFINED_LESSONS.find(l => l.id === lessonId);
@@ -115,13 +103,12 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Settings change
   const handleSettingsChange = useCallback(<K extends keyof MorseSettings>(key: K, value: MorseSettings[K]) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-    morsePlayer.updateSettings({ [key]: value } as any);
-  }, [morsePlayer]);
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    updateSettings({ [key]: value } as any);
+  }, [settings, updateSettings]);
 
-  // Compute score
   const computeScore = useCallback((playedText: string, userText: string, groupSize: number): Score => {
     const playedGroups = playedText.replace(/\n/g, ' ').split(' ').filter(g => g.length > 0);
     const userInput = userText.toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -249,9 +236,6 @@ const App: React.FC = () => {
       <div className="w-full max-w-4xl mx-auto space-y-6">
         <header className="text-center">
           <h1 className="text-4xl font-bold text-teal-400">Morse Code Trainer</h1>
-          <p className="mt-2 text-teal-300">
-            Character Speed: {settings.wpm} WPM | Effective Speed: {effectiveWpm.toFixed(1)} WPM
-          </p>
         </header>
 
         <main className="space-y-8">
