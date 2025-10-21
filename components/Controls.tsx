@@ -95,7 +95,7 @@ const Controls: React.FC<ControlsProps> = ({
         <Slider
           label="Word Spacing"
           min={3}
-          max={15}
+          max={25}
           step={1}
           value={settings.wordSpaceDots}
           onChange={(e) => onSettingsChange('wordSpaceDots', parseInt(e.target.value, 10))}
