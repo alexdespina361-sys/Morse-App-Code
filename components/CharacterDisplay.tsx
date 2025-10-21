@@ -29,7 +29,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
   characterSet,
   isPlaying,
 }) => {
-  const [historyExpanded, setHistoryExpanded] = useState(true);  // Changed to true for default expanded view
+  const [historyExpanded, setHistoryExpanded] = useState(false);  // Start minimized
 
   // Format text with groups for display
   const formattedText = useMemo(() => {
@@ -60,7 +60,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
   const highlightedText = useMemo(() => {
     if (!score || !transcriptionMode || !text) return formattedText;
     const playedGroups = text.replace(/\n/g, ' ').split(' ').filter(g => g.length > 0);
-    const userGroups = userTranscription.toUpperCase().replace(/[^A-Z0-9]/g, '').match(new RegExp(`.{1,${groupSize}}`, 'g')) || [];
+    const userGroups = userTranscription.toUpperCase().replace(/[^A-Z0-9?!]/g, '').match(new RegExp(`.{1,${groupSize}}`, 'g')) || [];
     let highlighted = '';
     playedGroups.forEach((group, gIdx) => {
       if (gIdx > 0) highlighted += ' ';
@@ -68,7 +68,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
       group.split('').forEach((char, cIdx) => {
         const isCorrect = cIdx < userGroup.length && char === userGroup[cIdx];
         const color = isCorrect ? 'text-green-400 font-bold' : 'text-red-400 font-bold';
-        highlighted += `<span class="${color}">${char}</span>`;  // Removed leading space
+        highlighted += `<span class="${color}">${char}</span>`;
       });
     });
     return highlighted;
@@ -80,7 +80,7 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
     const chars = formattedText.split('');
     const highlightIndex = currentIndex;
     if (highlightIndex >= 0 && highlightIndex < chars.length) {
-      chars[highlightIndex] = `<span class="bg-teal-600 text-white px-1 rounded">${chars[highlightIndex]}</span>`;  // Removed leading space
+      chars[highlightIndex] = `<span class="bg-teal-600 text-white px-1 rounded">${chars[highlightIndex]}</span>`;
     }
     return chars.join('');
   }, [formattedText, showCharacter, currentIndex, transcriptionMode]);
@@ -103,6 +103,18 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
     return formattedGroups.join(' ').replace(/\n/g, '\n');
   };
 
+  // Preview for minimized history: last group of latest entry
+  const historyPreview = useMemo(() => {
+    if (history.length === 0) return null;
+    const latestEntry = history[history.length - 1];
+    const groups = latestEntry.playedText.trimEnd().split(' ');
+    const lastGroup = groups[groups.length - 1] || '';
+    return {
+      lastGroup: formatHistoryText(lastGroup),  // Apply padding if needed, but since last, no pad
+      score: latestEntry.score,
+    };
+  }, [history, groupSize]);
+
   if (!showCharacter && !transcriptionMode) {
     return (
       <div className="bg-gray-800 rounded-lg shadow-xl p-6 text-center text-gray-400">
@@ -124,17 +136,15 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
                 <div className="mb-4">
                   Score: {score.score}/10 ({score.correct}/{score.total})
                 </div>
-                <span dangerouslySetInnerHTML={{ __html: highlightedText }} />  {/* Added rendering of highlighted comparison */}
+                <span dangerouslySetInnerHTML={{ __html: highlightedText }} />
               </>
             ) : (
               <>
-                <input
-                  type="text"
+                <textarea
                   value={userTranscription}
                   onChange={(e) => onTranscriptionChange(e.target.value)}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono mb-4"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 font-mono mb-4 min-h-[100px] resize-y"
                   placeholder="Type what you hear..."
-                  disabled={isPlaying}
                 />
                 <div className="flex flex-wrap gap-2 mb-4">
                   {keys.map((k) => (
@@ -142,7 +152,6 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
                       key={k}
                       onClick={() => onTranscriptionChange(userTranscription + k)}
                       className="px-3 py-1 bg-teal-600 hover:bg-teal-700 rounded-md text-white font-mono"
-                      disabled={isPlaying}
                     >
                       {k}
                     </button>
@@ -162,9 +171,9 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
           <h2 className="text-xl font-semibold text-teal-400 mb-4 cursor-pointer" onClick={() => setHistoryExpanded(!historyExpanded)}>
             History ({history.length})
           </h2>
-          {historyExpanded && (
+          {historyExpanded ? (
             <div className="space-y-4">
-              {history.map((entry, idx) => (
+              {history.slice().reverse().map((entry, idx) => (  // Reversed for latest first
                 <div key={idx} className="border-t border-gray-700 pt-4">
                   <p className="text-sm text-gray-400 mb-2">{new Date(entry.timestamp).toLocaleString()}</p>
                   <pre className="whitespace-pre-wrap break-words font-mono text-sm text-gray-200">
@@ -178,6 +187,20 @@ const CharacterDisplay: React.FC<CharacterDisplayProps> = ({
                 </div>
               ))}
             </div>
+          ) : (
+            historyPreview && (
+              <div className="space-y-2">
+                <p className="text-sm text-gray-400">Last session's final group (preview):</p>
+                <pre className="whitespace-pre-wrap break-words font-mono text-sm text-gray-200">
+                  {historyPreview.lastGroup}
+                </pre>
+                {historyPreview.score && (
+                  <p className="text-sm text-teal-400">
+                    Score: {historyPreview.score.score}/10 ({historyPreview.score.correct}/{historyPreview.score.total})
+                  </p>
+                )}
+              </div>
+            )
           )}
         </div>
       )}
