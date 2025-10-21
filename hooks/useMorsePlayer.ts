@@ -1,3 +1,4 @@
+// ./src/hooks/useMorsePlayer.ts
 import { useEffect, useRef, useState } from 'react';
 
 const MORSE_CODE: Record<string, string> = {
@@ -8,7 +9,8 @@ const MORSE_CODE: Record<string, string> = {
   'Y': '-.--', 'Z': '--..',
   '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-',
   '5': '.....', '6': '-....', '7': '--...', '8': '---..', '9': '----.',
-  // Removed ' ': ' ' to properly skip spaces without errors
+  '?': '..--..',
+  '!': '-.-.--',
 };
 
 export const useMorsePlayer = (initialSettings: any) => {
@@ -50,7 +52,7 @@ export const useMorsePlayer = (initialSettings: any) => {
     }
   };
 
-  // Updatefrequency if changed after initialization
+  // Update frequency if changed after initialization
   useEffect(() => {
     if (oscillatorRef.current) {
       oscillatorRef.current.frequency.value = settings.frequency;
@@ -80,6 +82,8 @@ export const useMorsePlayer = (initialSettings: any) => {
 
       if (!code) continue; // Skip spaces, newlines, etc.
 
+      const charStartDelay = delay;
+
       for (const symbol of code) {
         const toneTime = symbol === '.' ? dotDuration : dotDuration * 3;
         timeoutsRef.current.push(setTimeout(() => playTone(toneTime / 1000), delay));
@@ -87,7 +91,10 @@ export const useMorsePlayer = (initialSettings: any) => {
       }
 
       delay += dotDuration * (settings.charSpaceDots - 1);
-      onProgress(i, groupCount + 1 === settings.groupSize); // Pass isGroupEnd for adding spaces in display
+
+      const isGroupEnd = groupCount + 1 === settings.groupSize;
+      timeoutsRef.current.push(setTimeout(() => onProgress(i, isGroupEnd), charStartDelay));
+
       groupCount++;
       if (groupCount === settings.groupSize) {
         delay += dotDuration * settings.wordSpaceDots;
