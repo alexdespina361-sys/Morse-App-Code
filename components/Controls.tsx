@@ -22,7 +22,6 @@ interface ControlsProps {
   onPlay: () => void;
   isPlaying: boolean;
   buttonText: string;
-  effectiveWpm: number;
 }
 
 const PREDEFINED_LESSONS: Lesson[] = [
@@ -53,14 +52,13 @@ const Controls: React.FC<ControlsProps> = ({
   onPlay,
   isPlaying,
   buttonText,
-  effectiveWpm,
 }) => {
   return (
     <div className="bg-gray-800 rounded-lg shadow-xl p-6 space-y-6">
       {/* Sliders */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Slider
-          label={`Speed (WPM) - Effective: ${effectiveWpm.toFixed(1)}`}
+          label="Speed (WPM)"
           min={5}
           max={40}
           step={1}
