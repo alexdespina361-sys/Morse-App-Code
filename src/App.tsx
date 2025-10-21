@@ -47,7 +47,7 @@ const App: React.FC = () => {
   const currentPlayTextRef = useRef<string>('');
   const preRunLenRef = useRef<number>(0);
 
-  const { play, stop, updateSettings, initializeAudio, isInitialized } = useMorsePlayer(settings);
+  const { play, stop, updateSettings, initializeAudio, isInitialized, settings, setSettings, effectiveWpm } = useMorsePlayer(settings);
 
   // localStorage persistence (load)
   useEffect(() => {
@@ -110,7 +110,12 @@ const App: React.FC = () => {
       setSelectedLesson(null);
     }
   }, []);
-
+  <div className="text-center text-teal-300 mt-2">
+  <p>
+    Character Speed: {settings.wpm} WPM | Effective Speed: {effectiveWpm.toFixed(1)} WPM
+  </p>
+</div>
+  
   const handleSettingsChange = useCallback(<K extends keyof MorseSettings>(key: K, value: MorseSettings[K]) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
