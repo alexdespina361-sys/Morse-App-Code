@@ -111,7 +111,7 @@ const App: React.FC = () => {
 
   const computeScore = useCallback((playedText: string, userText: string, groupSize: number): Score => {
     const playedGroups = playedText.replace(/\n/g, ' ').split(' ').filter(g => g.length > 0);
-    const userInput = userText.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const userInput = userText.toUpperCase().replace(/[^A-Z0-9?!]/g, '');
     const userGroups: string[] = [];
     for (let i = 0; i < userInput.length; i += groupSize) {
       userGroups.push(userInput.slice(i, i + groupSize));
@@ -228,7 +228,7 @@ const App: React.FC = () => {
   }, [isPlaying, isInitialized, initializeAudio, characterSet, settings, preRunText, transcriptionMode, userTranscription, play, stop, computeScore, addToHistory, handleStop]);
 
   const handleTranscriptionChange = useCallback((value: string) => {
-    setUserTranscription(value.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+    setUserTranscription(value.toUpperCase().replace(/[^A-Z0-9?!]/g, ''));
   }, []);
 
   const handleShowCharacterChange = useCallback((value: boolean) => {
