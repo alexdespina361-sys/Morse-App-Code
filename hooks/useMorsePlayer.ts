@@ -1,4 +1,3 @@
-// ./src/hooks/useMorsePlayer.ts
 import { useEffect, useRef, useState } from 'react';
 
 const MORSE_CODE: Record<string, string> = {
@@ -59,19 +58,22 @@ export const useMorsePlayer = (initialSettings: any) => {
     }
   }, [settings.frequency]);
 
-  const playTone = (duration: number) => {
+  const scheduleTone = (startTime: number, duration: number) => {
     if (!audioContextRef.current || !gainNodeRef.current) return;
-    const now = audioContextRef.current.currentTime;
-    gainNodeRef.current.gain.setValueAtTime(settings.volume, now);
-    gainNodeRef.current.gain.setValueAtTime(0, now + duration);
+    const rampTime = 0.005; // 5ms for smooth anti-click ramps
+    gainNodeRef.current.gain.setValueAtTime(0, startTime);
+    gainNodeRef.current.gain.linearRampToValueAtTime(settings.volume, startTime + rampTime);
+    gainNodeRef.current.gain.setValueAtTime(settings.volume, startTime + duration - rampTime);
+    gainNodeRef.current.gain.linearRampToValueAtTime(0, startTime + duration);
   };
 
   const play = (text: string, onProgress: any, onFinish: any) => {
     initializeAudio();
     stop();
 
-    const dotDuration = 1200 / settings.wpm;
-    let delay = 0;
+    const dotDurationMs = 1200 / settings.wpm; // in ms
+    const now = audioContextRef.current!.currentTime + 0.1; // Buffer for scheduling
+    let audioTime = now; // in seconds
     let groupCount = 0;
 
     text = text.toUpperCase();
@@ -82,27 +84,28 @@ export const useMorsePlayer = (initialSettings: any) => {
 
       if (!code) continue; // Skip spaces, newlines, etc.
 
-      const charStartDelay = delay;
+      const charStartDelayMs = (audioTime - now) * 1000;
+      const isGroupEnd = groupCount + 1 === settings.groupSize;
+      timeoutsRef.current.push(setTimeout(() => onProgress(i, isGroupEnd), charStartDelayMs));
 
       for (const symbol of code) {
-        const toneTime = symbol === '.' ? dotDuration : dotDuration * 3;
-        timeoutsRef.current.push(setTimeout(() => playTone(toneTime / 1000), delay));
-        delay += toneTime + dotDuration;
+        const toneDurationMs = symbol === '.' ? dotDurationMs : dotDurationMs * 3;
+        const toneDuration = toneDurationMs / 1000;
+        scheduleTone(audioTime, toneDuration);
+        audioTime += toneDuration + (dotDurationMs / 1000);
       }
 
-      delay += dotDuration * (settings.charSpaceDots - 1);
-
-      const isGroupEnd = groupCount + 1 === settings.groupSize;
-      timeoutsRef.current.push(setTimeout(() => onProgress(i, isGroupEnd), charStartDelay));
+      audioTime += (dotDurationMs / 1000) * (settings.charSpaceDots - 1);
 
       groupCount++;
       if (groupCount === settings.groupSize) {
-        delay += dotDuration * settings.wordSpaceDots;
+        audioTime += (dotDurationMs / 1000) * settings.wordSpaceDots;
         groupCount = 0;
       }
     }
 
-    timeoutsRef.current.push(setTimeout(onFinish, delay));
+    const finalDelayMs = (audioTime - now) * 1000;
+    timeoutsRef.current.push(setTimeout(onFinish, finalDelayMs));
   };
 
   const stop = () => {
